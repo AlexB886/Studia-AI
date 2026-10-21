@@ -331,8 +331,30 @@
 }
 @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
 
+/* ---------- Volver arriba ---------- */
+.to-top {
+  position: fixed;
+  right: 22px; bottom: 22px;
+  width: 42px; height: 42px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  opacity: 0; visibility: hidden;
+  transform: translateY(10px);
+  transition: opacity .2s ease, transform .2s ease, visibility .2s ease;
+  z-index: 45;
+}
+.to-top.is-visible { opacity: 1; visibility: visible; transform: none; }
+.to-top:hover { background: var(--brand-500); color: #fff; border-color: transparent; }
+.to-top .icon { width: 19px; height: 19px; }
+
 @media (max-width: 720px) {
   .modal { border-radius: var(--radius-lg); }
   .toast-root { left: 14px; right: 14px; bottom: 14px; }
   .toast { max-width: none; }
+  .to-top { right: 14px; bottom: 14px; width: 38px; height: 38px; }
 }

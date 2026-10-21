@@ -320,6 +320,54 @@
     });
   }
 
+  /* ---------------- Scroll ----------------
+     Red de seguridad: si la rueda del ratón cae sobre un elemento que NO
+     puede desplazarse (tarjetas, tablas, celdas...), se desplaza la página.
+     Sin esto hay navegadores donde el scroll "se queda" y no baja nada. */
+  function canScroll(node) {
+    if (!node || node === document.body || node === document.documentElement) return false;
+    var s = getComputedStyle(node);
+    if (!/(auto|scroll|overlay)/.test(s.overflowY)) return false;
+    return node.scrollHeight - node.clientHeight > 1;
+  }
+  function scrollableAncestor(node) {
+    while (node && node !== document.body) {
+      if (canScroll(node)) return node;
+      node = node.parentElement;
+    }
+    return null;
+  }
+  function wireScroll() {
+    document.addEventListener('wheel', function (e) {
+      if (e.ctrlKey || e.defaultPrevented) return;
+      if (document.body.style.overflow === 'hidden') return;          // hay un modal abierto
+      if (scrollableAncestor(e.target)) return;                     // ese contenedor se encarga
+      var se = document.scrollingElement || document.documentElement;
+      var max = se.scrollHeight - se.clientHeight;
+      if (max <= 1) return;                                          // no hay nada más abajo
+      var next = se.scrollTop + e.deltaY;
+      if (next <= 0 || next >= max) return;                          // ya está en el borde
+      e.preventDefault();
+      se.scrollTop = next;
+    }, { passive: false });
+
+    /* Botón "volver arriba": deja claro que la página se ha desplazado. */
+    var top = U.h('button.to-top', { 'aria-label': 'Volver arriba', title: 'Volver arriba' }, U.icon('arrow-up'));
+    top.addEventListener('click', function () {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    document.body.appendChild(top);
+    var ticking = false;
+    window.addEventListener('scroll', function () {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(function () {
+        top.classList.toggle('is-visible', window.scrollY > 260);
+        ticking = false;
+      });
+    }, { passive: true });
+  }
+
   /* ---------------- Arranque ---------------- */
   function boot() {
     store.load();
@@ -335,6 +383,7 @@
     wireBell();
     wireProfile();
     wireShortcuts();
+    wireScroll();
     document.getElementById('btnTheme').addEventListener('click', toggleTheme);
     document.getElementById('btnSettings').addEventListener('click', openSettings);
 

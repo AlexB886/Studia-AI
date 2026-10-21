@@ -53,6 +53,22 @@
   letter-spacing: .09em; color: var(--text-soft);
   padding: 14px 10px 6px;
 }
+
+/* En pantallas bajas el menú se compacta para que quepa entero
+   (así la rueda del ratón nunca se queda "atrapada" en la barra lateral). */
+@media (max-height: 780px) {
+  .nav__label { padding: 9px 10px 4px; }
+  .nav__item { padding: 6px 11px; font-size: .87rem; }
+  .sidebar__streak { margin: 6px 0 0; padding: 8px 10px; }
+  .sidebar__brand { padding: 4px 8px 10px; }
+  .sidebar { padding: 12px 14px; }
+}
+@media (max-height: 700px) {
+  .nav__label { display: none; }
+  .nav__item { padding: 5px 11px; }
+  .sidebar__streak { display: none; }
+  .brand__text small { display: none; }
+}
 .nav__item {
   display: flex; align-items: center; gap: 11px;
   padding: 9px 11px;
