@@ -159,16 +159,21 @@
 
 .segmented {
   display: inline-flex;
+  max-width: 100%;
   padding: 3px;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 10px;
   gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.segmented::-webkit-scrollbar { display: none; }
 .segmented button {
   padding: 5px 13px;
   border-radius: 7px;
   font-size: .8rem; font-weight: 600;
+  white-space: nowrap;
   color: var(--text-muted);
   transition: background .15s ease, color .15s ease;
 }

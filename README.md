@@ -23,6 +23,18 @@ No hay `npm install`, ni build, ni dependencias: es HTML + CSS + JavaScript plan
 Eso es deliberado para que cada miembro del equipo pueda trabajar su módulo
 sin romper a los demás.
 
+### Capturas del prototipo
+
+En `docs/capturas/` tienes una imagen de cada vista:
+
+| | | | | |
+|---|---|---|---|---|
+| ![Panel](docs/capturas/shot-dashboard.png) | ![Calendario](docs/capturas/shot-calendar.png) | ![Horario](docs/capturas/shot-schedule.png) | ![Estudio](docs/capturas/shot-study.png) | ![Progresión](docs/capturas/shot-progress.png) |
+| Panel | Calendario | Horario | Estudio | Progresión |
+| ![Asignaturas](docs/capturas/shot-subjects.png) | ![Tareas](docs/capturas/shot-tasks.png) | ![Luna](docs/capturas/shot-ai.png) | ![Social](docs/capturas/shot-social.png) | ![Premium](docs/capturas/shot-premium.png) |
+| Asignaturas | Tareas | Luna | Social | Premium |
+
+
 ### Atajos de teclado
 
 | Atajo | Acción |
