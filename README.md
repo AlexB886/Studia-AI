@@ -211,3 +211,25 @@ Pendientes para las próximas iteraciones:
 - No hay usuarios ni contraseñas: el perfil es único y local.
 - La IA es local (no consume tokens ni llama a ningún servidor).
 - Los ficheros "subidos" no se guardan: solo la ficha del apunte.
+
+---
+
+## 8. Documentos del grupo
+
+- [`docs/backend.md`](docs/backend.md) — **qué es una base de datos, qué opciones
+  hay (Supabase, Firebase, PHP+MySQL) y cuál conviene.** Con el SQL de las
+  tablas y el plan de migración paso a paso.
+- [`docs/planes.md`](docs/planes.md) — **reparto de funciones entre el plan
+  Gratis y el Premium**, con las decisiones que hay que tomar en la reunión
+  (precios, prueba gratuita, anuncios,RGPD...).
+- `docs/capturas/` — capturas de las 10 vistas.
+
+### Decisiones ya tomadas
+
+| Tema | Decisión |
+|---|---|
+| Nombre | **Studia-IA** (pendiente de confirmar si es definitivo) |
+| Backend | De momento **localStorage**; el plan a Supabase está en `docs/backend.md` |
+| IA | **Motor local** por ahora; la API real (Luna) se conecta más adelante |
+| Premium | La comparativa actual es **provisional**, pendiente de la reunión |
+| Stack | HTML + CSS + JS plano, **sin dependencias** para poder trabajar por ramas |
