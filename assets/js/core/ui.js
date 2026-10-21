@@ -29,6 +29,18 @@
   /* ---------------- Modal ---------------- */
   var openModals = [];
 
+  /* Bloqueo del scroll de la página mientras hay un modal abierto.
+     Se bloquea el <html> (que es quien reparte el scroll de la ventana)
+     y el <body>; al cerrar el último modal se restaura todo. */
+  function lockScroll() {
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+  }
+  function unlockScroll() {
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+  }
+
   /**
    * modal({ title, subtitle, body: Node, actions: [{label, variant, onClick}],
    *        wide, onOpen })
@@ -41,7 +53,7 @@
     var close = function () {
       backdrop.remove();
       openModals = openModals.filter(function (m) { return m !== api; });
-      if (!openModals.length) document.body.style.overflow = '';
+      if (!openModals.length) unlockScroll();
     };
 
     var head = U.h('div.modal__head', [
@@ -81,10 +93,11 @@
       if (e.target === backdrop && opts.dismissable !== false) close();
     });
     root.appendChild(backdrop);
-    document.body.style.overflow = 'hidden';
-    openModals.push(api);
+    lockScroll();
 
     var api = { close: close, root: box, body: body };
+    openModals.push(api);
+
     if (opts.onOpen) opts.onOpen(api);
     var firstInput = box.querySelector('input, textarea, select');
     if (firstInput && opts.autofocus !== false) setTimeout(function () { firstInput.focus(); }, 40);
