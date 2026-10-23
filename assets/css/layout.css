@@ -203,6 +203,7 @@
 
 .icon-btn {
   position: relative;
+  flex: none;
   width: 36px; height: 36px;
   display: grid; place-items: center;
   border-radius: 10px;
@@ -266,12 +267,43 @@
   .app__body { margin-left: 0; }
   .topbar__menu { display: grid; }
   .topbar__search { width: auto; flex: 1 1 auto; max-width: 320px; }
+  /* Zona táctil mínima de 44px en el menú lateral */
+  .nav__item { min-height: 44px; padding: 10px 12px; }
 }
 @media (max-width: 720px) {
   :root { --gutter: 16px; }
-  .topbar { height: auto; padding: 10px var(--gutter); flex-wrap: wrap; }
-  .topbar__title h1 { font-size: 1.02rem; }
+  .topbar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "menu title actions"
+      "search search search";
+    height: auto;
+    padding: 8px var(--gutter) 10px;
+    row-gap: 8px;
+    column-gap: 10px;
+    align-items: center;
+  }
+  .topbar__menu { grid-area: menu; }
+  .topbar__title { grid-area: title; }
+  .topbar__actions { grid-area: actions; gap: 4px; }
+  .topbar__search {
+    grid-area: search;
+    margin-left: 0;
+    width: 100%;
+    max-width: none;
+    flex-basis: auto;
+    order: 0;
+  }
+  .topbar__title h1 {
+    font-size: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .topbar__title p { display: none; }
-  .topbar__search { order: 5; flex-basis: 100%; max-width: none; }
   .chip--streak { display: none; }
+  /* El chip del cronómetro se queda solo con el icono y el tiempo */
+  #timerChip [data-timer-mode] { display: none; }
+  #timerChip { padding: 3px 8px; gap: 5px; }
 }

@@ -52,7 +52,7 @@
   /* ---------------- Render ---------------- */
   function render(root) {
     U.clear(root);
-    root.appendChild(U.h('div.grid', { style: { gridTemplateColumns: 'minmax(0,1fr) 320px', alignItems: 'start' } }, [
+    root.appendChild(U.h('div.grid.grid--split', { style: { '--split': '320px' } }, [
       scheduleCard(),
       sideColumn()
     ]));
@@ -132,7 +132,8 @@
           U.h('button.btn.btn--primary.btn--sm', { onclick: function () { openForm(null, { day: U.dayIndex(new Date()), start: '09:00', end: '10:30' }); } }, [U.icon('plus'), 'Clase'])
         ])
       ]),
-      U.h('div.tt', [head, body])
+      U.h('div.tt', [head, body]),
+      U.h('p.tt-hint.tiny.soft', 'Desliza en horizontal para ver toda la semana')
     ]);
   }
 

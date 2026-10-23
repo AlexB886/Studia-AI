@@ -34,8 +34,6 @@
         if (val === null || val === undefined || val === false) return;
         if (key === 'class' || key === 'className') {
           String(val).split(/\s+/).filter(Boolean).forEach(function (c) { node.classList.add(c); });
-        } else if (key === 'html') {
-          node.innerHTML = val;
         } else if (key === 'text') {
           node.textContent = val;
         } else if (key === 'dataset') {
@@ -238,9 +236,55 @@
   function timeToMinutes(t) { var p = String(t || '0:0').split(':'); return (+p[0]) * 60 + (+p[1]); }
   function minutesToTime(m) { return pad(Math.floor(m / 60)) + ':' + pad(m % 60); }
 
+  /* Escapa texto si alguna vez hay que construir HTML a mano.
+     En `h()` usa siempre `text`/hijos de texto: no acepta `html`. */
+  function esc(value) {
+    return String(value === null || value === undefined ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  /* Texto normalizado para buscar: minúsculas y sin tildes
+     ("calculo" encuentra "Cálculo"). */
+  function norm(text) {
+    return String(text === null || text === undefined ? '' : text)
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+  }
+
+  /* Copia texto al portapapeles: API moderna y, si no está disponible
+     (file://, navegadores viejos), el método clásico con <textarea>. */
+  function copy(text) {
+    if (global.navigator && navigator.clipboard && global.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.top = '-1000px';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        var ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        ok ? resolve() : reject(new Error('No se pudo copiar'));
+      } catch (e) {
+        document.body.removeChild(ta);
+        reject(e);
+      }
+    });
+  }
+
   Studia.utils = {
     $: $, $$: $$, h: h, icon: icon, clear: clear, on: on, debounce: debounce,
     uid: uid, clamp: clamp, sum: sum, groupBy: groupBy, sortBy: sortBy,
+    copy: copy, norm: norm, esc: esc,
     toDate: toDate, toISO: toISO, today: today, now: now,
     addDays: addDays, addMonths: addMonths, daysInMonth: daysInMonth,
     startOfWeek: startOfWeek, startOfMonth: startOfMonth, endOfMonth: endOfMonth,

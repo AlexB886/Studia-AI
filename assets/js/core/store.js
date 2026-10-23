@@ -8,14 +8,21 @@
   var Studia = global.Studia = global.Studia || {};
   var U = Studia.utils;
 
+  /* Versión del formato de datos. Súbela SIEMPRE que cambies la forma
+     del estado y añade el paso correspondiente en `migrate()`. */
+  var SCHEMA_VERSION = 2;
+
   var state = null;
   var listeners = [];
   var saveTimer = null;
+  var status = 'idle';                 // idle | loading | ready | error
+  var readyPromise = null;
+  var lastSaveError = null;
 
   /* ---------------- Base de estado ---------------- */
   function defaults() {
     return {
-      version: 1,
+      version: SCHEMA_VERSION,
       profile: {
         name: 'Estudiante',
         initials: 'ES',
@@ -51,7 +58,9 @@
         knowledge: null
       },
       streak: { history: {}, best: 0 },
-      xp: 0
+      xp: 0,
+      /* Estado guardado del pomodoro (ver modules/study.js). */
+      timer: null
     };
   }
 
@@ -67,40 +76,122 @@
     return out;
   }
 
-  function load() {
-    var saved = null;
-    try { saved = JSON.parse(global.localStorage.getItem(Studia.db.KEY) || 'null'); } catch (e) { saved = null; }
-    if (!saved || !saved.profile) {
+  /* ---------------- Migraciones ----------------
+     Cada cambio de forma del estado sube SCHEMA_VERSION y añade un bloque
+     aquí. Así los datos guardados por una versión anterior se actualizan
+     solos en vez de romper la app. */
+  function migrate(saved) {
+    if (!saved || typeof saved !== 'object') return saved;
+    var data = saved;
+    var from = data.version || 1;
+
+    if (from < 2) {
+      /* v2: el pomodoro se guarda para sobrevivir a recargas. */
+      if (data.timer === undefined) data.timer = null;
+    }
+    /* if (from < 3) { ... } */
+
+    data.version = SCHEMA_VERSION;
+    if (from > SCHEMA_VERSION) {
+      console.warn('[Studia] Los datos son de una versión más nueva (' + from + '). Se intentará cargar igualmente.');
+    }
+    return data;
+  }
+
+  function hydrate(saved) {
+    var data = migrate(saved);
+    if (!data || !data.profile) {
       state = merge(defaults(), Studia.seed.build());
     } else {
-      state = merge(defaults(), saved);
+      state = merge(defaults(), data);
     }
+    state.version = SCHEMA_VERSION;
     return state;
+  }
+
+  function persistNow() {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    var p;
+    try { p = Studia.db.save(state); } catch (e) { p = Promise.reject(e); }
+    if (p && typeof p.catch === 'function') {
+      p.catch(function (e) {
+        lastSaveError = e;
+        if (Studia.captureError) Studia.captureError('guardado', e && e.message, e && e.stack);
+      });
+    }
+    return p;
   }
 
   function persist() {
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(function () {
-      Studia.db.save(state);
-    }, 120);
+    saveTimer = setTimeout(persistNow, 120);
   }
 
-  function notify() {
-    persist();
+  function notify(opts) {
+    if (!opts || opts.persist !== false) persist();
     listeners.forEach(function (fn) {
       try { fn(state); } catch (e) { console.error('[Studia] Error en suscriptor:', e); }
     });
   }
 
+  /* Carga (o crea) el estado. Devuelve una promesa: con localStorage se
+     resuelve al instante y con Supabase esperará a la red. */
+  function load() {
+    if (readyPromise) return readyPromise;
+    status = 'loading';
+    readyPromise = Promise.resolve()
+      .then(function () { return Studia.db.load(); })
+      .then(function (saved) {
+        hydrate(saved);
+        status = 'ready';
+        if (!saved) persistNow();
+        return state;
+      })
+      .catch(function (e) {
+        status = 'error';
+        lastSaveError = e;
+        hydrate(null);           // la app sigue abriendo con datos de ejemplo
+        throw e;
+      });
+    return readyPromise;
+  }
+
+  /* Otra pestaña ha guardado: recargamos sin volver a escribir (si no,
+     las dos pestañas se sobrescribirían en bucle). */
+  function watchOtherTabs() {
+    global.addEventListener('storage', function (e) {
+      if (e.key !== Studia.db.KEY) return;
+      try {
+        var data = e.newValue ? JSON.parse(e.newValue) : null;
+        if (!data) return;
+        hydrate(data);
+        notify({ persist: false });
+        if (Studia.router) Studia.router.render();
+        if (Studia.ui) Studia.ui.toast('Datos actualizados desde otra pestaña', 'info');
+      } catch (err) {
+        console.warn('[Studia] No se pudo sincronizar con la otra pestaña:', err);
+      }
+    });
+  }
+
   /* ---------------- API ---------------- */
   var store = {
+    SCHEMA: SCHEMA_VERSION,
     get: function () { return state; },
 
-    /** Carga (o crea) el estado inicial desde la persistencia. */
-    load: function () {
-      load();
-      return state;
-    },
+    /** Carga (o crea) el estado inicial. Devuelve una promesa. */
+    load: function () { return load(); },
+
+    /** Promesa que se resuelve cuando los datos están listos. */
+    ready: function () { return readyPromise || Promise.resolve(state); },
+
+    /** idle | loading | ready | error */
+    status: function () { return status; },
+
+    /** Fuerza el guardado pendiente (tests, antes de cerrar…). */
+    flush: function () { return persistNow(); },
+    lastSaveError: function () { return lastSaveError; },
 
     /** update(fn) → muta el estado y notifica. */
     update: function (fn) {
@@ -117,7 +208,33 @@
 
     reset: function () {
       state = merge(defaults(), Studia.seed.build());
+      state.version = SCHEMA_VERSION;
       notify();
+    },
+
+    /* --------------- Copia de seguridad --------------- */
+    /** Devuelve un objeto serializable con todos los datos. */
+    exportData: function () {
+      return {
+        app: 'Studia-IA',
+        schema: SCHEMA_VERSION,
+        exportedAt: new Date().toISOString(),
+        state: JSON.parse(JSON.stringify(state))
+      };
+    },
+
+    /** Restaura una copia creada por `exportData()`. Lanza si no es válida. */
+    importData: function (payload) {
+      var data = payload && payload.state ? payload.state : payload;
+      if (!data || !data.profile || !Array.isArray(data.tasks) || !Array.isArray(data.subjects)) {
+        throw new Error('El archivo no parece una copia de Studia-IA');
+      }
+      hydrate(data);
+      status = 'ready';
+      persistNow();
+      notify({ persist: false });
+      if (Studia.router) Studia.router.render();
+      return state;
     },
 
     /* --------------- Selectores --------------- */
@@ -279,5 +396,6 @@
     }
   };
 
+  watchOtherTabs();
   Studia.store = store;
 })(window);

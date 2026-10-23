@@ -23,6 +23,21 @@ No hay `npm install`, ni build, ni dependencias: es HTML + CSS + JavaScript plan
 Eso es deliberado para que cada miembro del equipo pueda trabajar su módulo
 sin romper a los demás.
 
+### Comprobar que todo sigue bien
+
+```bash
+node tools/check.js      # ~2 s, sin instalar nada
+```
+
+Revisa sintaxis de todo el JS, que los assets referenciados existan, que la
+versión de caché coincida, que no falten iconos, que cada vista del menú tenga
+su ruta, el manifest de la PWA y que nadie use `innerHTML` (regla anti-XSS).
+
+Para el núcleo (migraciones, copia de seguridad, racha, nivel, pomodoro, IA)
+abre **`tests.html`** en el navegador: son 20 comprobaciones que copian tus
+datos y los restauran al terminar. El mismo `check` se ejecuta en cada push
+gracias a `.github/workflows/ci.yml`.
+
 ### Capturas del prototipo
 
 En `docs/capturas/` tienes una imagen de cada vista:
@@ -34,6 +49,13 @@ En `docs/capturas/` tienes una imagen de cada vista:
 | ![Asignaturas](docs/capturas/shot-subjects.png) | ![Tareas](docs/capturas/shot-tasks.png) | ![Luna](docs/capturas/shot-ai.png) | ![Social](docs/capturas/shot-social.png) | ![Premium](docs/capturas/shot-premium.png) |
 | Asignaturas | Tareas | Luna | Social | Premium |
 
+Y cómo se ve en un móvil (390 px de ancho):
+
+| | | |
+|---|---|---|
+| ![Panel en móvil](docs/capturas/shot-movil-dashboard.png) | ![Calendario en móvil](docs/capturas/shot-movil-calendar.png) | ![Estudio en móvil](docs/capturas/shot-movil-study.png) |
+| Panel | Calendario | Estudio |
+
 
 ### Atajos de teclado
 
@@ -43,6 +65,28 @@ En `docs/capturas/` tienes una imagen de cada vista:
 | `t` | Vista Estudio (pomodoro) |
 | `c` | Vista Calendario |
 | `h` | Vista Horario |
+
+### Si algo falla
+
+La app captura los errores en vez de dejar la pantalla en blanco y los guarda
+para poder reportarlos:
+
+1. Menú → perfil → **Ajustes** → botón izquierdo **Diagnóstico**.
+2. Pulsa **Copiar** y pega el texto en el grupo. Incluye versión, navegador,
+   tamaño de pantalla, datos cargados y los últimos errores.
+
+Si un error ocurre mientras usas la app, aparece un aviso rojo "Algo ha
+fallado": al pulsarlo copia ese mismo diagnóstico. Si una vista concreta se
+rompe, verás una tarjeta con "Copiar error" y "Volver al panel" en lugar de
+una página vacía.
+
+### Versión y caché
+
+`index.html` carga los CSS y JS con `?v=0.2.0` para que el navegador no se
+quede con una versión vieja. **Si cambias un archivo y no ves los cambios,
+sube ese número** en `index.html` y en `<meta name="app-version">`; después
+ejecuta `node tools/check.js`, que avisa si `APP_VERSION` (en `main.js`) y
+`package.json` se han quedado atrás.
 
 ---
 
@@ -75,6 +119,11 @@ se desbloquean automáticamente al completar sesiones.
 ```
 proyecto_grupo_prog/
 ├── index.html                 # esqueleto de la app + sprite de iconos SVG
+├── tests.html                 # tests del núcleo en el navegador
+├── tools/check.js             # comprobaciones estáticas (CI, sin dependencias)
+├── package.json               # solo scripts (`npm run check`), sin dependencias
+├── manifest.webmanifest       # PWA: nombre, colores e iconos
+├── .github/workflows/ci.yml   # ejecuta tools/check.js en cada push
 ├── assets/
 │   ├── css/
 │   │   ├── base.css           # variables, reset, tipografía, utilidades
@@ -95,8 +144,9 @@ proyecto_grupo_prog/
 │   │   ├── modules/           # un archivo por módulo (¡aquí se reparte el trabajo!)
 │   │   │   ├── dashboard.js   calendar.js  schedule.js  study.js  progress.js
 │   │   │   ├── subjects.js    tasks.js     ai.js        social.js  premium.js
-│   │   ├── main.js            # arranque: tema, buscador, recordatorios, atajos
-│   └── img/favicon.svg
+│   │   ├── tests.js           # suite del núcleo (la carga tests.html)
+│   │   └── main.js            # arranque: tema, buscador, recordatorios, atajos
+│   └── img/                   # favicon.svg + iconos PWA (192, 512, apple-touch)
 └── README.md
 ```
 
@@ -122,6 +172,7 @@ Ahora mismo todo vive en `localStorage` bajo la clave `studia.db.v1`:
 
 ```js
 {
+  version:   2,                // esquema actual (migraciones automáticas)
   profile:   { name, university, plan: 'free'|'premium', ... },
   settings:  { theme, dailyGoal, pomodoro:{work,short,long,cycle}, holidayRegions[] },
   subjects:  [ { id, code, name, color, teacher, credits } ],
@@ -132,9 +183,24 @@ Ahora mismo todo vive en `localStorage` bajo la clave `studia.db.v1`:
   notes:     [ { id, subjectId, type:'link'|'file'|'video', title, url } ],
   forum:     [ { id, author, text, likes, replies[] } ],
   streak:    { history: { '2026-10-21': 95 }, best },
-  xp:        780
+  xp:        780,
+  timer:     { mode, total, remaining, running, endAt, cycle, ... } // pomodoro
 }
 ```
+
+### Copias de seguridad, varias pestañas y migraciones
+
+- **Exportar / importar:** Ajustes → **Copia de seguridad** → *Descargar*
+  genera un `.json` con todo; *Restaurar* lo vuelve a cargar (pide confirmación
+  y valida el archivo). Útil para pasar los datos a otro navegador u ordenador.
+- **Varias pestañas:** si abres la app dos veces, los cambios de una aparecen
+  en la otra (evento `storage`) sin pisarse.
+- **Migraciones:** al guardar se escribe `version`. Si un día cambia la forma
+  de los datos, se sube `SCHEMA_VERSION` en `store.js` y se añade el paso
+  correspondiente en `migrate()`; las copias antiguas se actualizan solas.
+- **Al cerrar:** se fuerza el guardado pendiente (`pagehide`), así que arrancar
+  el pomodoro y recargar en el acto no pierde el estado. El pomodoro se
+  recupera al volver, incluso si terminó mientras la app estaba cerrada.
 
 ### Cómo conectar Supabase en el futuro
 
@@ -147,9 +213,24 @@ como esqueleto) y llamar a `Studia.db.use('supabase')` + `Studia.db.configureSup
 ### Detalle de la IA
 
 El chat de Luna usa un motor de respuestas **local** (`assets/js/modules/ai.js`)
-que consulta tus propios datos (tareas, exámenes, racha, apuntes). Cuando exista
-la API real (la del proyecto "Luna" que menciona el documento), se sustituye la
-función `reply()` por una llamada al backend y se mantiene la interfaz tal cual.
+que consulta tus propios datos (tareas, exámenes, racha, apuntes). La interfaz
+ya es asíncrona y se puede sustituir sin tocar la vista:
+
+```js
+Studia.ai.setEngine({
+  name: 'api',
+  ask: function (text, ctx, opts) {
+    // ctx = perfil, asignaturas, tareas abiertas, próximo examen, minutos…
+    // opts.signal = AbortSignal (cancelar si se envía otro mensaje)
+    return fetch('/api/luna', { method:'POST', body: JSON.stringify({ text, ctx }), signal: opts.signal })
+      .then(function (r) { return r.json(); })   // → { text: '…' }
+  }
+});
+Studia.ai.setEngine(null);   // volver al motor local
+```
+
+Si la petición falla se muestra un aviso y el error queda en **Diagnóstico**,
+en lugar de dejar el chat colgado.
 
 ---
 
@@ -211,6 +292,16 @@ Pendientes para las próximas iteraciones:
 - No hay usuarios ni contraseñas: el perfil es único y local.
 - La IA es local (no consume tokens ni llama a ningún servidor).
 - Los ficheros "subidos" no se guardan: solo la ficha del apunte.
+- En móvil (< 860 px) el horario semanal se desplaza en horizontal: cinco días
+  no caben en 360 px sin volverlo ilegible. La columna de horas queda fija.
+- La sincronización entre pestañas es del **mismo navegador**: para pasar los
+  datos a otro dispositivo hay que usar la copia de seguridad.
+- El aviso sonoro del pomodoro puede no oírse si la pestaña está cerrada o el
+  móvil suspende el navegador; al volver, el tiempo se recalcula por la hora
+  de fin.
+- Probado en Chrome de 320 a 1440 px (y en Firefox de escritorio), tanto con
+  `file://` como con Apache: sin desbordes horizontales de página ni errores
+  de consola.
 
 ---
 
@@ -228,7 +319,7 @@ Pendientes para las próximas iteraciones:
 
 | Tema | Decisión |
 |---|---|
-| Nombre | **Studia-IA** (pendiente de confirmar si es definitivo) |
+| Nombre | **Studia-IA** (se mantiene de momento) |
 | Backend | De momento **localStorage**; el plan a Supabase está en `docs/backend.md` |
 | IA | **Motor local** por ahora; la API real (Luna) se conecta más adelante |
 | Premium | La comparativa actual es **provisional**, pendiente de la reunión |

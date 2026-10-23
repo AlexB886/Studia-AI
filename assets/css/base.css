@@ -133,6 +133,44 @@ img, svg { display: block; max-width: 100%; }
 
 :focus-visible { outline: 2px solid var(--brand-500); outline-offset: 2px; }
 
+/* Enlace visible solo al navegar con teclado */
+.skip-link {
+  position: fixed; top: 8px; left: 8px; z-index: 300;
+  transform: translateY(-180%);
+  padding: 10px 16px;
+  border: 0; border-radius: var(--radius);
+  background: var(--brand-600); color: #fff;
+  font: inherit; font-size: .85rem; font-weight: 650;
+  box-shadow: var(--shadow-lg);
+  transition: transform .15s ease;
+}
+.skip-link:focus { transform: none; }
+
+/* Pantalla de carga del arranque */
+.boot-screen {
+  position: fixed; inset: 0; z-index: 500;
+  display: grid; place-items: center;
+  background: var(--bg);
+}
+.boot-screen[hidden] { display: none; }
+.boot-screen__card {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  animation: fadeIn .2s ease;
+}
+.boot-screen__bar {
+  width: 150px; height: 4px; border-radius: 999px;
+  background: var(--surface-2); overflow: hidden;
+}
+.boot-screen__bar i {
+  display: block; width: 40%; height: 100%;
+  background: var(--brand-500);
+  animation: bootBar 1.1s ease-in-out infinite;
+}
+@keyframes bootBar {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(360%); }
+}
+
 ::selection { background: var(--brand-200); color: var(--text); }
 
 /* ---------- Scrollbars ---------- */
@@ -190,10 +228,16 @@ img, svg { display: block; max-width: 100%; }
 .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .grid-auto { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+/* Contenido principal + panel lateral. En pantallas estrechas pasa a una
+   sola columna (antes se ponía con style inline y no se adaptaba). */
+.grid--split { grid-template-columns: minmax(0, 1fr) var(--split, 340px); align-items: start; }
 
 @media (max-width: 1180px) {
   .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 1100px) {
+  .grid--split { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 720px) {
   .grid-2, .grid-3, .grid-4 { grid-template-columns: minmax(0, 1fr); }

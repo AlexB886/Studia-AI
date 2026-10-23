@@ -209,22 +209,55 @@
     return null;
   }
 
-  /* ---------------- Chat ---------------- */
-  function send(text) {
-    var ai = store.get().ai;
-    var messages = ai.messages || [];
-    messages.push({ id: U.uid('m'), role: 'me', text: text, time: new Date().toISOString() });
-    store.update(function (s) { s.ai.messages = messages; });
-    showTyping();
-    setTimeout(function () {
-      var answer = reply(text);
-      var list = store.get().ai.messages || [];
-      list.push({ id: U.uid('m'), role: 'ai', text: answer, time: new Date().toISOString() });
-      store.update(function (s) { s.ai.messages = list; });
-    }, 620);
+  /* ---------------- Motor de respuestas ----------------
+     Interfaz pensada para enchufar una API real sin tocar la vista:
+
+       Studia.ai.setEngine({
+         name: 'api',
+         ask: function (text, ctx, opts) {
+           // debe devolver Promise<{ text: string }>
+           // y respetar opts.signal (AbortSignal) para cancelar
+         }
+       });
+
+     El contexto (ctx) incluye perfil, asignaturas, tareas abiertas,
+     próximo examen, minutos de hoy y los últimos mensajes. */
+  var localEngine = {
+    name: 'local',
+    ask: function (text, ctx, opts) {
+      return new Promise(function (resolve, reject) {
+        var t = setTimeout(function () { resolve({ text: reply(text) }); }, 620);
+        if (opts && opts.signal) {
+          opts.signal.addEventListener('abort', function () {
+            clearTimeout(t);
+            var err = new Error('Petición cancelada');
+            err.name = 'AbortError';
+            reject(err);
+          });
+        }
+      });
+    }
+  };
+
+  var engine = localEngine;
+  var pending = null;
+
+  function buildContext() {
+    var s = store.get();
+    return {
+      profile: { name: s.profile.name, course: s.profile.course, plan: s.profile.plan },
+      subjects: s.subjects.map(function (x) { return { id: x.id, name: x.name, code: x.code }; }),
+      openTasks: s.tasks.filter(function (t) { return !t.done; }).slice(0, 10).map(function (t) {
+        return { title: t.title, due: t.due, priority: t.priority, subjectId: t.subjectId };
+      }),
+      nextExam: store.nextExam(),
+      minutesToday: store.minutesOn(U.today()),
+      history: (s.ai.messages || []).slice(-8).map(function (m) { return { role: m.role, text: m.text }; })
+    };
   }
 
   function showTyping() {
+    removeTyping();
     var chat = document.getElementById('aiChat');
     if (!chat) return;
     var node = U.h('div.msg.msg--ai', { id: 'aiTyping' }, [
@@ -233,6 +266,39 @@
     ]);
     chat.appendChild(node);
     chat.scrollTop = chat.scrollHeight;
+  }
+
+  function removeTyping() {
+    var node = document.getElementById('aiTyping');
+    if (node) node.remove();
+  }
+
+  /* ---------------- Chat ---------------- */
+  function send(text) {
+    var messages = (store.get().ai.messages || []).slice();
+    messages.push({ id: U.uid('m'), role: 'me', text: text, time: new Date().toISOString() });
+    store.update(function (s) { s.ai.messages = messages; });
+    showTyping();
+
+    if (pending) pending.abort();            // una sola respuesta a la vez
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    pending = ctrl;
+
+    engine.ask(text, buildContext(), { signal: ctrl && ctrl.signal })
+      .then(function (res) {
+        if (pending === ctrl) pending = null;
+        removeTyping();
+        var list = (store.get().ai.messages || []).slice();
+        list.push({ id: U.uid('m'), role: 'ai', text: (res && res.text) || '', time: new Date().toISOString() });
+        store.update(function (s) { s.ai.messages = list; });
+      })
+      .catch(function (err) {
+        if (pending === ctrl) pending = null;
+        removeTyping();
+        if (err && err.name === 'AbortError') return;
+        ui.toast('Luna no ha podido responder. Inténtalo otra vez.', 'error');
+        if (Studia.captureError) Studia.captureError('ia', err && err.message, err && err.stack);
+      });
   }
 
   /* ---------------- Test inicial ---------------- */
@@ -425,7 +491,7 @@
       'Resume mis apuntes'
     ];
 
-    root.appendChild(U.h('div.grid', { style: { gridTemplateColumns: 'minmax(0,1fr) 330px', alignItems: 'start' } }, [
+    root.appendChild(U.h('div.grid.grid--split', { style: { '--split': '330px' } }, [
       U.h('div.card.card--flush', [
         U.h('div.row.row--between.gap-2', { style: { padding: '14px 16px', borderBottom: '1px solid var(--border)' } }, [
           U.h('div.row.gap-2', [
@@ -481,6 +547,13 @@
       if (Studia.router.current() === 'ai') refresh();
     });
   }
+
+  Studia.ai = {
+    engine: function () { return engine; },
+    setEngine: function (next) { engine = next || localEngine; return engine; },
+    ask: function (text, opts) { return engine.ask(text, buildContext(), opts); },
+    localEngine: localEngine
+  };
 
   Studia.modules = Studia.modules || {};
   Studia.modules.ai = { init: init, render: render, BANK: BANK, reply: reply };

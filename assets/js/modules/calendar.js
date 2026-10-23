@@ -39,12 +39,11 @@
     U.clear(root);
     var wrap = U.h('div', [
       header(),
-      U.h('div.grid', { style: { gridTemplateColumns: 'minmax(0,1fr) 330px', alignItems: 'start' } }, [
+      U.h('div.grid.grid--split', { style: { '--split': '330px' } }, [
         view.mode === 'month' ? monthGrid() : agendaList(),
         sidePanel()
       ])
     ]);
-    if (global.innerWidth < 1180) wrap.querySelector('.grid').style.gridTemplateColumns = 'minmax(0,1fr)';
     root.appendChild(wrap);
   }
 
@@ -70,16 +69,16 @@
     }));
 
     return U.h('div.card.mb-3', [
-      U.h('div.row.row--between.row--wrap.gap-2', [
-        U.h('div.row.gap-1', [
+      U.h('div.row.row--between.row--wrap.gap-2.cal-head', [
+        U.h('div.row.row--wrap.gap-1.cal-nav', [
           U.h('button.icon-btn', { onclick: function () { view.month = U.startOfMonth(U.addMonths(view.month, -1)); refresh(); }, 'aria-label': 'Mes anterior' }, U.icon('chev-left')),
-          U.h('h2', { style: { minWidth: '190px', textAlign: 'center', textTransform: 'capitalize' } }, months[m] + ' ' + y),
+          U.h('h2.cal-title', months[m] + ' ' + y),
           U.h('button.icon-btn', { onclick: function () { view.month = U.startOfMonth(U.addMonths(view.month, 1)); refresh(); }, 'aria-label': 'Mes siguiente' }, U.icon('chev-right')),
           U.h('button.btn.btn--ghost.btn--sm', {
             onclick: function () { view.month = U.startOfMonth(new Date()); view.selected = U.today(); refresh(); }
           }, 'Hoy')
         ]),
-        U.h('div.row.gap-2', [
+        U.h('div.row.row--wrap.gap-2.cal-tools', [
           U.h('div.segmented', [
             U.h('button', { class: view.mode === 'month' ? 'is-active' : '', onclick: function () { view.mode = 'month'; refresh(); } }, 'Mes'),
             U.h('button', { class: view.mode === 'agenda' ? 'is-active' : '', onclick: function () { view.mode = 'agenda'; refresh(); } }, 'Agenda')

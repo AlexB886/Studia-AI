@@ -95,6 +95,22 @@ Los módulos (`calendar.js`, `study.js`...) **no se tocan**.
 Añadir el login es otra cosa (una pantalla de entrada + guardar el token),
 pero el resto de la app no cambia.
 
+### El contrato ya es asíncrono
+
+Aunque hoy `localStorage` responde al instante, **todo está escrito para que
+la red no rompa nada**:
+
+- `store.load()` devuelve una **Promesa** y la app muestra una pantalla de
+  carga si tarda más de 150 ms (y un aviso si falla, sin quedarse en blanco).
+- `db.load/save/select/insert/update/remove` devuelven **Promesas**; el
+  adaptador local las resuelve al momento y el de Supabase esperará a `fetch`.
+- `Studia.ai.setEngine({ ask: function (text, ctx, opts) { … } })` permite
+  cambiar el motor local por la API real sin tocar el chat, con `AbortSignal`
+  para cancelar peticiones.
+
+Por eso, al conectar Supabase, los módulos seguirán funcionando igual: solo
+cambia `db.js` (y, si se quiere, el motor de la IA).
+
 ---
 
 ## 5. Tablas que necesita el proyecto

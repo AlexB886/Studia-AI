@@ -19,7 +19,8 @@
     subjectId: null,
     taskId: null,
     notes: '',
-    tick: null
+    tick: null,
+    lastFinishedEndAt: null
   };
 
   var MODES = {
@@ -30,6 +31,27 @@
 
   /* ---------------- Timer ---------------- */
   function settings() { return store.get().settings.pomodoro; }
+
+  /* Guarda el estado del pomodoro para que sobreviva a recargas. No se
+     llama en cada tick: con `running` + `endAt` basta para recalcular. */
+  function saveTimer(extra) {
+    store.update(function (s) {
+      var prev = s.timer || {};
+      s.timer = {
+        mode: timer.mode,
+        total: timer.total,
+        remaining: timer.remaining,
+        running: timer.running,
+        endAt: timer.running ? timer.endAt : null,
+        cycle: timer.cycle,
+        subjectId: timer.subjectId,
+        taskId: timer.taskId,
+        notes: timer.notes,
+        lastFinishedEndAt: prev.lastFinishedEndAt || null
+      };
+      if (extra && extra.lastFinishedEndAt) s.timer.lastFinishedEndAt = extra.lastFinishedEndAt;
+    });
+  }
 
   function secondsFor(mode) {
     var p = settings();
@@ -46,6 +68,7 @@
     if (autostart) start();
     refresh();
     updateChip();
+    saveTimer();
   }
 
   function start() {
@@ -55,6 +78,7 @@
     timer.tick = setInterval(onTick, 250);
     refresh();
     updateChip();
+    saveTimer();
   }
 
   function pause() {
@@ -63,6 +87,7 @@
     stop();
     refresh();
     updateChip();
+    saveTimer();
   }
 
   function stop() {
@@ -76,6 +101,7 @@
     timer.remaining = timer.total;
     refresh();
     updateChip();
+    saveTimer();
   }
 
   function onTick() {
@@ -86,12 +112,13 @@
   }
 
   function finish() {
+    var endedAt = timer.endAt || Date.now();
     stop();
     beep();
     if (timer.mode === 'work') {
       var p = settings();
       var result = store.addSession({
-        date: U.today(),
+        date: U.toISO(new Date(endedAt)),
         minutes: p.work,
         subjectId: timer.subjectId,
         taskId: timer.taskId,
@@ -125,6 +152,7 @@
     }
     refresh();
     updateChip();
+    saveTimer({ lastFinishedEndAt: endedAt });
   }
 
   function checkMilestones(info) {
@@ -183,7 +211,7 @@
     var goal = store.get().settings.dailyGoal || 120;
     var done = store.minutesOn(today);
 
-    root.appendChild(U.h('div.grid', { style: { gridTemplateColumns: 'minmax(0,1fr) 340px', alignItems: 'start' } }, [
+    root.appendChild(U.h('div.grid.grid--split', [
       U.h('div.col.gap-2', [
         timerCard(),
         goalCard(done, goal),
@@ -225,7 +253,7 @@
       ])
     ]);
 
-    var subjectSelect = U.h('select.select.select--sm', { onchange: function () { timer.subjectId = subjectSelect.value || null; updateChip(); } }, [
+    var subjectSelect = U.h('select.select.select--sm', { onchange: function () { timer.subjectId = subjectSelect.value || null; updateChip(); saveTimer(); } }, [
       U.h('option', { value: '' }, 'Sin asignatura')
     ].concat(subjects.map(function (s) {
       var o = U.h('option', { value: s.id }, s.name);
@@ -375,10 +403,46 @@
     if (main && Studia.router.current() === 'study') render(main);
   }
 
+  /* Recupera el pomodoro guardado. Devuelve false si no había ninguno. */
+  function restoreTimer() {
+    var saved = store.get().timer;
+    if (!saved) return false;
+    timer.mode = MODES[saved.mode] ? saved.mode : 'work';
+    timer.total = saved.total || secondsFor(timer.mode);
+    timer.cycle = saved.cycle || 0;
+    timer.subjectId = saved.subjectId || null;
+    timer.taskId = saved.taskId || null;
+    timer.notes = saved.notes || '';
+    timer.lastFinishedEndAt = saved.lastFinishedEndAt || null;
+
+    if (saved.running && saved.endAt) {
+      var left = Math.round((saved.endAt - Date.now()) / 1000);
+      if (left > 0) {
+        timer.remaining = left;
+        start();                       // reanuda y recalcula endAt
+        return true;
+      }
+      timer.endAt = saved.endAt;
+      if (saved.endAt !== saved.lastFinishedEndAt) {
+        timer.remaining = 0;
+        finish();                      // terminó mientras la app estaba cerrada
+        return true;
+      }
+      timer.remaining = timer.total;
+    } else {
+      timer.remaining = Math.min(saved.remaining || timer.total, timer.total);
+    }
+    refresh();
+    updateChip();
+    return true;
+  }
+
   function init() {
-    timer.subjectId = store.get().subjects.length ? store.get().subjects[0].id : null;
-    timer.total = secondsFor('work');
-    timer.remaining = timer.total;
+    if (!restoreTimer()) {
+      timer.subjectId = store.get().subjects.length ? store.get().subjects[0].id : null;
+      timer.total = secondsFor('work');
+      timer.remaining = timer.total;
+    }
     store.subscribe(function () {
       if (Studia.router.current() === 'study') refresh();
     });

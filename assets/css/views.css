@@ -4,6 +4,7 @@
    ========================================================= */
 
 /* ================= Calendario ================= */
+.cal-title { min-width: 190px; text-align: center; text-transform: capitalize; }
 .cal {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -89,7 +90,32 @@
   .cal__holiday { display: none; }
 }
 
+/* En móvil la rejilla del mes muestra puntos de color en vez de texto:
+   7 columnas en 360px no dan para leer los títulos. */
+@media (max-width: 720px) {
+  .cal { border-radius: var(--radius); }
+  .cal__dow { padding: 7px 2px; font-size: .6rem; letter-spacing: .02em; }
+  .cal__cell { min-height: 56px; padding: 4px 3px 6px; align-items: center; gap: 2px; }
+  .cal__head { justify-content: center; width: 100%; }
+  .cal__num { width: 22px; height: 22px; font-size: .72rem; }
+  .cal__cell--today .cal__num { width: 22px; height: 22px; }
+  .cal__events {
+    flex-direction: row; flex-wrap: wrap;
+    justify-content: center; gap: 3px;
+    margin-top: 1px; width: 100%;
+  }
+  .cal__event {
+    width: 6px; height: 6px; min-height: 0;
+    padding: 0; border: 0; border-radius: 50%;
+    background: currentColor;
+    font-size: 0; line-height: 0; overflow: hidden;
+  }
+  .cal__event .icon { display: none; }
+  .cal__event--more { background: var(--text-soft); }
+}
+
 /* ================= Horario ================= */
+.tt-hint { display: none; }
 .tt { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; overflow: clip; box-shadow: var(--shadow-sm); background: var(--surface); }
 .tt__head { display: grid; grid-template-columns: 64px repeat(5, minmax(0, 1fr)); background: var(--surface-2); }
 .tt__corner, .tt__day {
@@ -130,8 +156,11 @@
 .tt__class--conflict { outline: 2px dashed var(--rose-500); outline-offset: -2px; }
 
 @media (max-width: 860px) {
-  .tt { overflow-x: auto; }
+  .tt { overflow-x: auto; overscroll-behavior-x: contain; }
   .tt__head, .tt__body { min-width: 640px; }
+  /* La columna de horas se queda fija al desplazar la semana */
+  .tt__corner, .tt__hours { position: sticky; left: 0; z-index: 3; background: var(--surface-2); }
+  .tt-hint { display: block; padding: 8px 16px 12px; }
 }
 
 /* ================= Estudio / Pomodoro ================= */
@@ -302,8 +331,8 @@
 .post__author { font-size: .88rem; font-weight: 700; }
 .post__time { font-size: .74rem; color: var(--text-soft); }
 .post__text { font-size: .88rem; margin-top: 3px; white-space: pre-wrap; }
-.post__actions { display: flex; gap: 16px; margin-top: 9px; }
-.post__action { display: inline-flex; align-items: center; gap: 6px; font-size: .79rem; color: var(--text-muted); font-weight: 600; }
+.post__actions { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 9px; }
+.post__action { display: inline-flex; align-items: center; gap: 6px; padding: 6px 0; font-size: .79rem; color: var(--text-muted); font-weight: 600; }
 .post__action:hover { color: var(--brand-600); }
 .post__action.is-liked { color: var(--rose-600); }
 .post__action .icon { width: 16px; height: 16px; }
@@ -397,13 +426,16 @@
 .task:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
 .task.is-done .task__title { text-decoration: line-through; color: var(--text-soft); }
 .task__check {
-  width: 20px; height: 20px; flex: none; margin-top: 1px;
+  position: relative;
+  width: 22px; height: 22px; flex: none; margin-top: 1px;
   border-radius: 7px;
   border: 2px solid var(--border-strong);
   display: grid; place-items: center;
   transition: background .15s ease, border-color .15s ease;
 }
 .task__check .icon { width: 13px; height: 13px; stroke-width: 3; color: #fff; opacity: 0; }
+/* Zona táctil algo mayor que el círculo visible */
+.task__check::after { content: ""; position: absolute; inset: -7px; border-radius: 10px; }
 .task.is-done .task__check { background: var(--mint-500); border-color: var(--mint-500); }
 .task.is-done .task__check .icon { opacity: 1; }
 .task__title { font-size: .89rem; font-weight: 600; }
@@ -473,3 +505,28 @@
 .timeline__time { font-size: .72rem; color: var(--text-soft); font-weight: 650; }
 .timeline__title { font-size: .87rem; font-weight: 650; }
 .timeline__sub { font-size: .76rem; color: var(--text-muted); }
+
+
+/* ================= Ajustes finos de móvil ================= */
+@media (max-width: 380px) {
+  #timerChip { display: none; }
+  .timer__ring { width: 232px; height: 232px; }
+  .timer__time { font-size: 2.6rem; }
+  .timer { padding: 22px 12px 26px; }
+}
+@media (max-width: 720px) {
+  button.badge { padding: 7px 10px; }
+  .quick-prompt { padding: 7px 11px; }
+  .cal-title { min-width: 0; flex: 1 1 auto; font-size: .98rem; }
+  .cal-nav, .cal-tools { width: 100%; }
+  .cal-tools { justify-content: flex-start; }
+  .chat { max-height: 56vh; min-height: 200px; }
+  .composer { flex-wrap: wrap; }
+  .composer .btn { flex: 1 1 100%; }
+  .hero { padding: 22px 20px; }
+  .hero h2 { font-size: 1.24rem; }
+  .hero__ring svg { width: 76px; height: 76px; }
+  .section-head { align-items: flex-start; }
+  /* Tablas y rejillas anchas: scroll dentro de su tarjeta, nunca de la página */
+  .table-scroll, .heat, .tt { -webkit-overflow-scrolling: touch; }
+}

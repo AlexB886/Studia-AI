@@ -35,7 +35,7 @@
         stat('check', 'sky', open.length, 'tareas pendientes', open.filter(function (t) { return t.due && t.due < today; }).length + ' vencidas'),
         stat('target', 'rose', exam ? U.fmtRelative(exam.date) : '—', 'próximo examen', exam ? exam.title : 'Nada programado')
       ]),
-      U.h('div.grid', { style: { gridTemplateColumns: 'minmax(0,1fr) 340px', alignItems: 'start' } }, [
+      U.h('div.grid.grid--split', [
         U.h('div.col.gap-2', [agendaCard(classes), tasksCard(open), progressCard()]),
         U.h('div.col.gap-2', [weekCard(), lunaCard(), subjectsCard()])
       ])

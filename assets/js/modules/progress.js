@@ -190,7 +190,7 @@
         ])
       ]),
 
-      U.h('div.grid', { style: { gridTemplateColumns: 'minmax(0,1fr) 340px', alignItems: 'start' } }, [
+      U.h('div.grid.grid--split', [
         U.h('div.col.gap-2', [
           U.h('div.card', [
             U.h('div.card__head', [U.h('div', [U.h('h3', 'Reparto por asignatura'), U.h('p', 'Dónde se va tu tiempo')])]),

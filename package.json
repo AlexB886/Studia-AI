@@ -1,0 +1,10 @@
+{
+  "name": "studia-ia",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Studia-IA · prototipo sin dependencias (HTML, CSS y JS clásico)",
+  "scripts": {
+    "check": "node tools/check.js",
+    "test": "node tools/check.js"
+  }
+}

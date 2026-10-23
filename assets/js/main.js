@@ -9,6 +9,10 @@
   var Studia = global.Studia;
   var U = Studia.utils, store = Studia.store, ui = Studia.ui;
 
+  /* Expuesto para que otros módulos (router) puedan reportar fallos. */
+  Studia.captureError = function (kind, message, detail) { captureError(kind, message, detail); };
+  Studia.diagnostics = function () { return diagnosticsText(); };
+
   /* ---------------- Tema ---------------- */
   function applyTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : 'light');
@@ -42,33 +46,33 @@
     function close() { results.hidden = true; }
 
     function run() {
-      var q = input.value.trim().toLowerCase();
+      var q = U.norm(input.value.trim());
       if (q.length < 2) { close(); return; }
       var state = store.get();
       var found = [];
 
       state.subjects.forEach(function (s) {
-        if ((s.name + ' ' + (s.code || '') + ' ' + (s.teacher || '')).toLowerCase().indexOf(q) !== -1) {
+        if (U.norm(s.name + ' ' + (s.code || '') + ' ' + (s.teacher || '')).indexOf(q) !== -1) {
           found.push({ group: 'Asignaturas', icon: 'book', title: s.name, sub: s.teacher || '', action: function () { Studia.router.go('subjects'); } });
         }
       });
       state.tasks.forEach(function (t) {
-        if (t.title.toLowerCase().indexOf(q) !== -1) {
+        if (U.norm(t.title).indexOf(q) !== -1) {
           found.push({ group: 'Tareas', icon: 'check', title: t.title, sub: store.subjectName(t.subjectId), action: function () { Studia.router.go('tasks'); } });
         }
       });
       state.notes.forEach(function (n) {
-        if (n.title.toLowerCase().indexOf(q) !== -1) {
+        if (U.norm(n.title).indexOf(q) !== -1) {
           found.push({ group: 'Apuntes', icon: 'file', title: n.title, sub: store.subjectName(n.subjectId), action: function () { Studia.router.go('subjects'); } });
         }
       });
       state.events.forEach(function (e) {
-        if (e.title.toLowerCase().indexOf(q) !== -1) {
+        if (U.norm(e.title).indexOf(q) !== -1) {
           found.push({ group: 'Calendario', icon: 'calendar', title: e.title, sub: U.fmtDate(e.date, { short: true, day: true }), action: function () { Studia.router.go('calendar'); } });
         }
       });
       state.forum.forEach(function (p) {
-        if (p.text.toLowerCase().indexOf(q) !== -1) {
+        if (U.norm(p.text).indexOf(q) !== -1) {
           found.push({ group: 'Foro', icon: 'users', title: p.text.slice(0, 60), sub: p.author, action: function () { Studia.router.go('social'); } });
         }
       });
@@ -199,6 +203,24 @@
     });
   }
 
+  function downloadBackup() {
+    try {
+      var json = JSON.stringify(store.exportData(), null, 2);
+      var blob = new Blob([json], { type: 'application/json' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'studia-ia-' + U.today() + '.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+      ui.toast('Copia descargada', 'success');
+    } catch (e) {
+      ui.toast('No se pudo crear la copia', 'error');
+    }
+  }
+
   function openSettings() {
     var s = store.get().settings;
     var p = store.get().profile;
@@ -212,7 +234,39 @@
     firstDaySelect.value = String(s.firstDay === undefined ? 1 : s.firstDay);
 
     var regions = (s.holidayRegions || []).slice();
-    ui.modal({
+    var fileInput = U.h('input', { type: 'file', accept: '.json,application/json', hidden: true });
+    fileInput.addEventListener('change', function () {
+      var file = fileInput.files && fileInput.files[0];
+      fileInput.value = '';
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        var payload;
+        try { payload = JSON.parse(String(reader.result)); }
+        catch (err) { ui.toast('El archivo no es un JSON válido', 'error'); return; }
+        ui.confirm({
+          title: 'Restaurar copia de seguridad',
+          message: 'Se reemplazarán TODOS los datos actuales (tareas, sesiones, ajustes…) por los de la copia. Esta acción no se puede deshacer.',
+          okLabel: 'Restaurar', danger: true
+        }).then(function (ok) {
+          if (!ok) return;
+          try {
+            store.importData(payload);
+            applyTheme(store.get().settings.theme);
+            updateChrome();
+            if (modalApi) modalApi.close();
+            ui.toast('Copia restaurada correctamente', 'success');
+            Studia.router.go('dashboard');
+          } catch (err) {
+            ui.toast(err.message || 'No se pudo restaurar la copia', 'error');
+          }
+        });
+      };
+      reader.onerror = function () { ui.toast('No se pudo leer el archivo', 'error'); };
+      reader.readAsText(file);
+    });
+
+    var modalApi = ui.modal({
       title: 'Ajustes',
       subtitle: 'Preferencias de tu cuenta',
       body: U.h('div.col.gap-3', [
@@ -232,9 +286,19 @@
             });
             return U.h('label.switch', [input, U.h('span.switch__track'), U.h('span.small', Studia.holidays.REGIONS[key].label)]);
           }))
+        ]),
+        U.h('div.field', [
+          U.h('label.field__label', 'Copia de seguridad'),
+          U.h('p.tiny.soft.mb-1', 'Tus datos viven solo en este navegador. Descarga una copia si vas a cambiar de equipo o borrar datos.'),
+          U.h('div.row.row--wrap.gap-2', [
+            U.h('button.btn.btn--ghost.btn--sm', { type: 'button', onclick: downloadBackup }, [U.icon('file'), 'Descargar copia']),
+            U.h('button.btn.btn--ghost.btn--sm', { type: 'button', onclick: function () { fileInput.click(); } }, [U.icon('upload'), 'Restaurar copia'])
+          ]),
+          fileInput
         ])
       ]),
       actions: [
+        { label: 'Diagnóstico', align: 'left', variant: 'ghost', onClick: function () { openDiagnostics(); return false; } },
         { label: 'Cancelar', variant: 'ghost' },
         {
           label: 'Guardar', variant: 'primary', onClick: function () {
@@ -337,6 +401,16 @@
     }
     return null;
   }
+  function wireA11y() {
+    var skip = document.getElementById('skipToMain');
+    if (skip) skip.addEventListener('click', function () {
+      var main = document.getElementById('appMain');
+      if (!main) return;
+      main.focus();
+      main.scrollIntoView({ block: 'start' });
+    });
+  }
+
   function wireScroll() {
     document.addEventListener('wheel', function (e) {
       if (e.ctrlKey || e.defaultPrevented) return;
@@ -368,10 +442,124 @@
     }, { passive: true });
   }
 
-  /* ---------------- Arranque ---------------- */
-  function boot() {
-    store.load();
+  /* ---------------- Diagnóstico ----------------
+     Cualquier error no controlado se guarda aquí para poder copiarlo y
+     reportarlo. Es la forma más rápida de saber qué falla en otro equipo. */
+  var APP_VERSION = '0.2.0';
+  var recentErrors = [];
+
+  function captureError(kind, message, detail) {
+    var item = {
+      kind: kind,
+      message: String(message || 'Error desconocido'),
+      detail: detail ? String(detail) : '',
+      at: new Date()
+    };
+    recentErrors.push(item);
+    if (recentErrors.length > 20) recentErrors.shift();
+    Studia.lastError = item;
+    if (global.console && console.error) {
+      console.error('[Studia-IA ' + APP_VERSION + '] ' + kind + ':', message, detail || '');
+    }
+    if (kind === 'unhandledrejection') return;
+    var root = document.getElementById('toastRoot');
+    if (!root || root.querySelector('.toast--error')) return;
+    var t = U.h('div.toast.toast--error', [
+      U.h('span.toast__icon', U.icon('alert')),
+      U.h('div.grow', [
+        U.h('strong', 'Algo ha fallado'),
+        U.h('div.small.mt-1', 'Pulsa aquí para copiar el detalle y enviarlo al equipo.')
+      ])
+    ]);
+    t.addEventListener('click', function () {
+      U.copy(diagnosticsText()).then(function () {
+        if (t.parentNode) t.remove();
+        ui.toast('Detalle del fallo copiado', 'success');
+      }).catch(function () { if (t.parentNode) t.remove(); });
+    });
+    root.appendChild(t);
+    setTimeout(function () { if (t.parentNode) t.remove(); }, 9000);
+  }
+
+  function wireErrors() {
+    global.addEventListener('error', function (e) {
+      captureError('error', e.message, e.error && e.error.stack);
+    });
+    global.addEventListener('unhandledrejection', function (e) {
+      var r = e.reason;
+      captureError('unhandledrejection', (r && (r.message || r)) || 'Promesa rechazada', r && r.stack);
+    });
+  }
+
+  function diagnosticsText() {
+    var state = null;
+    try { state = store.get(); } catch (e) { /* datos ilegibles */ }
+    var lines = [
+      'Studia-IA ' + APP_VERSION,
+      'URL: ' + global.location.href,
+      'Navegador: ' + (global.navigator ? navigator.userAgent : '?'),
+      'Pantalla: ' + global.innerWidth + 'x' + global.innerHeight + ' @' + (global.devicePixelRatio || 1) + 'x',
+      'Tema: ' + document.documentElement.getAttribute('data-theme'),
+      'Vista: ' + (Studia.router.current() || '?'),
+      'Datos: ' + (state
+        ? state.tasks.length + ' tareas · ' + state.events.length + ' eventos · ' +
+          state.sessions.length + ' sesiones · ' + state.subjects.length + ' asignaturas'
+        : 'no se pudieron cargar'),
+      '',
+      recentErrors.length ? 'Errores recientes (' + recentErrors.length + '):' : 'Errores recientes: ninguno'
+    ];
+    recentErrors.forEach(function (e, i) {
+      lines.push((i + 1) + '. [' + e.kind + '] ' + e.message);
+      if (e.detail) lines.push('   ' + e.detail.split('\n').slice(0, 5).join('\n   '));
+    });
+    return lines.join('\n');
+  }
+
+  function openDiagnostics() {
+    var pre = U.h('pre.diag', { style: { userSelect: 'text', whiteSpace: 'pre-wrap', wordBreak: 'break-word' } }, diagnosticsText());
+    ui.modal({
+      title: 'Diagnóstico',
+      subtitle: 'Copia esto si algo no funciona y pégalo en el grupo',
+      body: U.h('div.col.gap-2', [
+        pre,
+        U.h('p.tiny.soft', 'No incluye contraseñas: la app guarda todo en este navegador, sin cuenta.')
+      ]),
+      actions: [
+        { label: 'Limpiar errores', align: 'left', variant: 'ghost', onClick: function () { recentErrors.length = 0; } },
+        {
+          label: 'Copiar', variant: 'primary', onClick: function () {
+            U.copy(diagnosticsText())
+              .then(function () { ui.toast('Diagnóstico copiado', 'success'); })
+              .catch(function () { ui.toast('No se pudo copiar; selecciona el texto', 'warn'); });
+          }
+        }
+      ]
+    });
+  }
+
+  /* ---------------- Pantalla de carga y arranque ---------------- */
+  function showBoot() {
+    var el = document.getElementById('bootScreen');
+    if (el) el.hidden = false;
+  }
+  function hideBoot() {
+    var el = document.getElementById('bootScreen');
+    if (el) el.hidden = true;
+  }
+
+  /* Guarda lo pendiente al cerrar/ocultar: así no se pierde el último
+     cambio (p. ej. arrancar el pomodoro y recargar en el acto). */
+  function wireLifecycle() {
+    function flush() { try { store.flush(); } catch (e) { /* sin storage */ } }
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) flush();
+    });
+  }
+
+  function startApp() {
     applyTheme(store.get().settings.theme);
+    wireLifecycle();
 
     Object.keys(Studia.modules).forEach(function (key) {
       if (Studia.modules[key] && typeof Studia.modules[key].init === 'function') Studia.modules[key].init();
@@ -383,6 +571,7 @@
     wireBell();
     wireProfile();
     wireShortcuts();
+    wireA11y();
     wireScroll();
     document.getElementById('btnTheme').addEventListener('click', toggleTheme);
     document.getElementById('btnSettings').addEventListener('click', openSettings);
@@ -392,6 +581,22 @@
 
     Studia.router.start();
     document.body.classList.add('is-ready');
+  }
+
+  function boot() {
+    wireErrors();
+    var t = setTimeout(showBoot, 150);   // solo aparece si la carga tarda
+    store.load().then(function () {
+      clearTimeout(t);
+      hideBoot();
+      startApp();
+    }, function (e) {
+      clearTimeout(t);
+      hideBoot();
+      startApp();
+      captureError('carga', e && e.message, e && e.stack);
+      ui.toast('No se pudieron cargar tus datos guardados: se muestran datos de ejemplo. Puedes restaurar una copia en Ajustes → Copia de seguridad.', 'warn', 9000);
+    });
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);

@@ -37,7 +37,7 @@
     var posts = U.sortBy(store.get().forum, function (p) { return p.createdAt; }, 'desc');
     var profile = store.get().profile;
 
-    root.appendChild(U.h('div.grid', { style: { gridTemplateColumns: 'minmax(0,1fr) 320px', alignItems: 'start' } }, [
+    root.appendChild(U.h('div.grid.grid--split', { style: { '--split': '320px' } }, [
       U.h('div.col.gap-2', [
         composer(),
         U.h('div.card', posts.length ? U.h('div', posts.map(post)) : U.h('div.empty', [
