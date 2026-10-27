@@ -118,6 +118,7 @@ se desbloquean automáticamente al completar sesiones.
 
 ```
 proyecto_grupo_prog/
+├── AGENTS.md                  # instrucciones para los agentes de IA (roles y reglas)
 ├── index.html                 # esqueleto de la app + sprite de iconos SVG
 ├── tests.html                 # tests del núcleo en el navegador
 ├── tools/check.js             # comprobaciones estáticas (CI, sin dependencias)
@@ -238,32 +239,35 @@ en lugar de dejar el chat colgado.
 
 Ramas creadas a partir de este prototipo:
 
-| Rama | Responsable | Contenido |
-|---|---|---|
-| `main` | todos | Prototipo v0 (esta base) |
-| `feature/calendar` | — | Mejoras del calendario (semana, arrastrar y soltar, exportar) |
-| `feature/schedule` | — | Horario (importar desde la universidad, avisos de cambios) |
-| `feature/study` | — | Pomodoro (notificaciones reales, música, resúmenes) |
-| `feature/progress` | — | Progresión (más métricas, exportar, comparar con el aula) |
-| `feature/ai` | — | Conectar la API real de IA + memoria persistente |
-| `feature/social` | — | Chat privado en tiempo real, subida real de ficheros |
-| `feature/premium` | — | Pagos (Stripe) y control de anuncios |
-| `feature/supabase` | — | Migrar la persistencia a Supabase |
+| Rama | Responsable | Archivos |
+|---|---|---|---|
+| `main` | todos | Base estable (`Web Base`); solo entra por Pull Request |
+| `hector` | Héctor | `index.html`, `main.js`, `ai.js`, `dashboard.js` y núcleo (`core/`) |
+| `carles` | Carles | `calendar.js`, `schedule.js` |
+| `joan` | Joan | `study.js`, `progress.js` |
+| `alex` | Alex | `tasks.js`, `subjects.js`, `social.js`, `premium.js` |
+
+El reparto completo y las tareas de cada uno están en
+[`docs/roles-y-tareas.md`](docs/roles-y-tareas.md). Las reglas que debe seguir
+cada agente de IA están en [`AGENTS.md`](AGENTS.md): al empezar, dile
+**"Soy Héctor"** (o tu nombre) y ya sabe qué tocar.
 
 ### Flujo de trabajo
 
 ```bash
-git clone <repo> && cd proyecto_grupo_prog
-git checkout feature/calendar        # o el módulo que te toque
-# ... trabajas tu módulo ...
-git add assets/js/modules/calendar.js
+git clone git@github.com:AlexB886/Studia-AI.git
+cd Studia-AI
+git checkout carles                  # tu rama (hector, carles, joan o alex)
+# ... trabajas solo tus módulos ...
+node tools/check.js
+git add .
 git commit -m "feat(calendar): vista semanal y exportar a .ics"
-git push origin feature/calendar
+git push origin carles
 # y se abre una Pull Request hacia main
 ```
 
 Reglas para evitar conflictos:
-1. **Un módulo = una rama.** No toques archivos de otros módulos.
+1. **Una persona = una rama.** No toques archivos de otros módulos.
 2. Si necesitas tocar `core/` (utils, store, ui), avisa antes en el chat del grupo:
    son los ficheros que todo el mundo usa.
 3. Los estilos de un módulo van en `assets/css/views.css`, en su bloque commented.
@@ -307,6 +311,10 @@ Pendientes para las próximas iteraciones:
 
 ## 8. Documentos del grupo
 
+- [`AGENTS.md`](AGENTS.md) — **instrucciones para los agentes de IA**: rol de cada
+  persona, reglas, cómo comprobar y cómo proponer ideas.
+- [`docs/roles-y-tareas.md`](docs/roles-y-tareas.md) — **reparto por persona** y
+  tareas concretas del momento.
 - [`docs/backend.md`](docs/backend.md) — **qué es una base de datos, qué opciones
   hay (Supabase, Firebase, PHP+MySQL) y cuál conviene.** Con el SQL de las
   tablas y el plan de migración paso a paso.
