@@ -61,13 +61,14 @@
   function scheduleCard() {
     var days = view.showWeekend ? 7 : 5;
     var todayIdx = U.dayIndex(new Date());
+    var gridTpl = '64px repeat(' + days + ', minmax(0, 1fr))';
 
-    var head = U.h('div.tt__head', [U.h('div.tt__corner', 'Hora')]);
+    var head = U.h('div.tt__head', { style: { gridTemplateColumns: gridTpl } }, [U.h('div.tt__corner', 'Hora')]);
     for (var d = 0; d < days; d++) {
       head.appendChild(U.h('div.tt__day' + (d === todayIdx ? '.tt__day--today' : ''), U.DIAS[d].slice(0, 3) + (d === todayIdx ? ' · hoy' : '')));
     }
 
-    var body = U.h('div.tt__body');
+    var body = U.h('div.tt__body', { style: { gridTemplateColumns: gridTpl } });
 
     /* Columna de horas */
     var hours = U.h('div.tt__hours');
