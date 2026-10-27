@@ -82,7 +82,7 @@ una página vacía.
 
 ### Versión y caché
 
-`index.html` carga los CSS y JS con `?v=0.2.0` para que el navegador no se
+`index.html` carga los CSS y JS con `?v=0.3.0` para que el navegador no se
 quede con una versión vieja. **Si cambias un archivo y no ves los cambios,
 sube ese número** en `index.html` y en `<meta name="app-version">`; después
 ejecuta `node tools/check.js`, que avisa si `APP_VERSION` (en `main.js`) y

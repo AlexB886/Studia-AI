@@ -1,16 +1,7 @@
-# Sistema operativo
 .DS_Store
 Thumbs.db
-
-# Editores
+desktop.ini
+*.log
+node_modules/
 .vscode/
 .idea/
-*.swp
-
-# Node (por si alguien añade herramientas)
-node_modules/
-npm-debug.log*
-
-# Entorno
-.env
-.env.local

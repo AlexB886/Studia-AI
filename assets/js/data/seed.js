@@ -155,7 +155,7 @@
         initials: 'ES',
         university: 'Universitat del Centre',
         course: '1º de Grado en Ingeniería Informática',
-        plan: 'free',
+        plan: 'premium',
         avatar: '🎓',
         joinedAt: rel(-55)
       },
@@ -165,7 +165,7 @@
         dailyGoal: 120,
         notifications: false,
         holidayRegions: ['catalunya', 'espanya'],
-        showAds: true,
+        showAds: false,
         pomodoro: { work: 25, short: 5, long: 15, cycle: 4 }
       },
       subjects: subjects,
