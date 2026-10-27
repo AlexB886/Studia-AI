@@ -8,7 +8,7 @@
   var Studia = global.Studia = global.Studia || {};
   var U = Studia.utils, store = Studia.store, ui = Studia.ui;
 
-  var view = { filter: 'open', subject: 'all' };
+  var view = { filter: 'open', subject: 'all', priority: 'all' };
 
   var PRIORITIES = {
     alta: { label: 'Alta', order: 0 },
@@ -23,10 +23,11 @@
       if (view.filter === 'done' && !t.done) return false;
       if (view.filter === 'overdue' && (t.done || !t.due || t.due >= today)) return false;
       if (view.subject !== 'all' && t.subjectId !== view.subject) return false;
+      if (view.priority !== 'all' && (t.priority || 'media') !== view.priority) return false;
       return true;
     });
     return U.sortBy(items, function (t) {
-      return (t.due || '9999-99-99') + '-' + (PRIORITIES[t.priority] ? PRIORITIES[t.priority].order : 1);
+      return (t.due || '9999-12-31') + '-' + (PRIORITIES[t.priority] ? PRIORITIES[t.priority].order : 1);
     });
   }
 
@@ -38,14 +39,23 @@
 
     root.appendChild(U.h('div.col.gap-2', [
       U.h('div.card', [
-        U.h('div.row.row--between.row--wrap.gap-2', [
-          U.h('div.row.gap-1.row--wrap', [
-            U.h('div.segmented', [
+      U.h('div.row.row--between.row--wrap.gap-2', [
+        U.h('div.grow.col.gap-2', [
+          U.h('div.segmented.task-filters', { role: 'group', 'aria-label': 'Filtrar por estado' }, [
               U.h('button', { class: view.filter === 'open' ? 'is-active' : '', onclick: function () { view.filter = 'open'; refresh(); } }, 'Pendientes'),
               U.h('button', { class: view.filter === 'all' ? 'is-active' : '', onclick: function () { view.filter = 'all'; refresh(); } }, 'Todas'),
               U.h('button', { class: view.filter === 'done' ? 'is-active' : '', onclick: function () { view.filter = 'done'; refresh(); } }, 'Completadas'),
               U.h('button', { class: view.filter === 'overdue' ? 'is-active' : '', onclick: function () { view.filter = 'overdue'; refresh(); } }, 'Vencidas')
             ]),
+            U.h('select.select.select--sm', {
+              onchange: function () { view.priority = this.value; refresh(); },
+              style: { width: 'auto' }
+            }, ['all', 'alta', 'media', 'baja'].map(function (p) {
+              var label = p === 'all' ? 'Cualquier prioridad' : 'Prioridad: ' + PRIORITIES[p].label.toLowerCase();
+              var o = U.h('option', { value: p }, label);
+              if (view.priority === p) o.selected = true;
+              return o;
+            })),
             U.h('select.select.select--sm', {
               onchange: function () { view.subject = this.value; refresh(); },
               style: { width: 'auto' }
@@ -102,6 +112,13 @@
         ])
       ]),
       U.h('div.row.gap-1', [
+        overdue ? U.h('button.icon-btn', {
+          onclick: function () {
+            store.updateRow('tasks', t.id, { due: U.toISO(U.addDays(new Date(), 7)) });
+            ui.toast('Pospuesta 7 días', 'success');
+          },
+          title: 'Posponer 7 días'
+        }, U.icon('calendar')) : null,
         U.h('button.icon-btn', { onclick: function () { openForm(t); }, title: 'Editar' }, U.icon('edit')),
         U.h('button.icon-btn', { onclick: function () { store.remove('tasks', t.id); ui.toast('Tarea eliminada', 'info'); }, title: 'Eliminar' }, U.icon('trash'))
       ])
@@ -134,7 +151,11 @@
     if (main && Studia.router.current() === 'tasks') render(main);
   }
 
+  var inited = false;
+
   function init() {
+    if (inited) return;
+    inited = true;
     store.subscribe(function () {
       if (Studia.router.current() === 'tasks') refresh();
     });
