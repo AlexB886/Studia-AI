@@ -145,3 +145,23 @@ Llegar a **junio de 2027** con la web publicada y algún ingreso, aunque sea
 simbólico. Ahora mismo la prioridad es **pulir la app y publicarla**, no
 rehacerla. Primero que se vea completa y funcione en móvil; después, login, base
 de datos y cobro.
+
+---
+
+## 8. Si trabajas desde GitHub (sin tener el repo en local)
+
+Si no tienes el proyecto clonado y editas desde la web de GitHub:
+
+- **Cambia a tu rama** con el selector de ramas (`hector`, `carles`, `joan`,
+  `alex`) antes de editar. No trabajes sobre `main`.
+- **El CI revisa tu push**: `.github/workflows/ci.yml` ejecuta
+  `node tools/check.js` automáticamente. Mira que el check salga en verde en tu
+  Pull Request antes de pedir la fusión.
+- **No puedes abrir `tests.html` ni la app** desde GitHub. Pide a Héctor el
+  enlace de preview del PR (Netlify) o revisa el despliegue de `main`.
+- **Para traer los cambios de `main`** a tu rama, abre el PR pronto (aunque sea
+  en borrador) y usa el botón **Update branch** cuando GitHub lo ofrezca.
+- **Si puedes, usa Codespaces** (Code → Codespaces): tienes terminal, `node` y
+  preview, y puedes ejecutar `node tools/check.js` y abrir `tests.html`.
+- **opencode necesita una carpeta del proyecto**: o clonada en tu ordenador o
+  dentro de un Codespace. Desde el editor web de GitHub no se puede ejecutar.
