@@ -36,6 +36,10 @@ o **"Soy Alex"**. Si no lo dice, **pregunta antes de hacer nada**.
 Las tareas concretas de cada uno están en **`docs/roles-y-tareas.md`**. Léelo
 completo al empezar y trabaja solo en tu parte.
 
+Antes de tocar nada, lee también **`docs/notas-revision.md`** y busca tu
+nombre: ahí están las correcciones y sugerencias pendientes de la última
+revisión. Si tu sección está vacía, no hay nada pendiente.
+
 ---
 
 ## 2. Reglas duras (no negociables)
