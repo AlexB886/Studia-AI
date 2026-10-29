@@ -218,9 +218,9 @@
                 e.location ? ' · ' + e.location : ''
               ])
             ]),
-            U.h('div.row.gap-1', [
-              U.h('button.icon-btn', { style: { width: '28px', height: '28px' }, onclick: function () { openEventForm(e); }, 'aria-label': 'Editar' }, U.icon('edit')),
-              U.h('button.icon-btn', { style: { width: '28px', height: '28px' }, onclick: function () { removeEvent(e); }, 'aria-label': 'Eliminar' }, U.icon('trash'))
+            U.h('div.row.gap-1.cal-day-actions', [
+              U.h('button.icon-btn', { onclick: function () { openEventForm(e); }, 'aria-label': 'Editar' }, U.icon('edit')),
+              U.h('button.icon-btn', { onclick: function () { removeEvent(e); }, 'aria-label': 'Eliminar' }, U.icon('trash'))
             ])
           ]);
         }) : [U.h('div.empty', { style: { padding: '18px 8px' } }, [
