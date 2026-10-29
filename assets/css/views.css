@@ -84,6 +84,7 @@
 .day-item--holiday  { border-left-color: var(--rose-500); background: rgba(244,63,94,.08); }
 .day-item__title { font-size: .85rem; font-weight: 650; }
 .day-item__meta { font-size: .74rem; color: var(--text-muted); }
+.cal-day-actions .icon-btn { width: 36px; height: 36px; }
 
 @media (max-width: 900px) {
   .cal__cell { min-height: 82px; }

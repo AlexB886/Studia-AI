@@ -149,7 +149,8 @@
       list.appendChild(U.h('div.empty', [
         U.h('div.empty__icon', U.icon('calendar')),
         U.h('h4', 'Nada programado por ahora'),
-        U.h('p', 'Crea tu primer evento o cambia a la vista de mes.')
+        U.h('p', 'Crea tu primer evento o cambia a la vista de mes.'),
+        U.h('button.btn.btn--primary.btn--sm', { onclick: function () { openEventForm(null, view.selected); } }, [U.icon('plus'), 'Añadir evento'])
       ]));
       return list;
     }
@@ -217,9 +218,9 @@
                 e.location ? ' · ' + e.location : ''
               ])
             ]),
-            U.h('div.row.gap-1', [
-              U.h('button.icon-btn', { style: { width: '28px', height: '28px' }, onclick: function () { openEventForm(e); }, 'aria-label': 'Editar' }, U.icon('edit')),
-              U.h('button.icon-btn', { style: { width: '28px', height: '28px' }, onclick: function () { removeEvent(e); }, 'aria-label': 'Eliminar' }, U.icon('trash'))
+            U.h('div.row.gap-1.cal-day-actions', [
+              U.h('button.icon-btn', { onclick: function () { openEventForm(e); }, 'aria-label': 'Editar' }, U.icon('edit')),
+              U.h('button.icon-btn', { onclick: function () { removeEvent(e); }, 'aria-label': 'Eliminar' }, U.icon('trash'))
             ])
           ]);
         }) : [U.h('div.empty', { style: { padding: '18px 8px' } }, [
@@ -247,9 +248,18 @@
       return { value: s.id, label: s.name };
     }));
 
+    var m = { close: function () {} };
+
     ui.formModal({
       title: isNew ? 'Nuevo evento' : 'Editar evento',
       subtitle: 'Se añadirá al calendario y a tus recordatorios.',
+      onOpen: function (api) {
+        m = api;
+        if (isNew || !api.body) return;
+        var del = U.h('button.btn.btn--danger.btn--sm', { onclick: function () { removeEvent(e, m); } }, [U.icon('trash'), 'Eliminar evento']);
+        var bar = U.h('div', { style: { display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' } }, [del]);
+        api.body.insertBefore(bar, api.body.firstChild);
+      },
       fields: [
         { name: 'title', label: 'Título', value: e.title, required: true, placeholder: 'Ej. Examen de Programación' },
         { name: 'type', label: 'Tipo', type: 'select', value: e.type, options: Object.keys(TYPES).map(function (k) { return { value: k, label: TYPES[k].label }; }) },
@@ -280,7 +290,7 @@
     });
   }
 
-  function removeEvent(e) {
+  function removeEvent(e, modalApi) {
     ui.confirm({
       title: '¿Eliminar este evento?',
       message: 'Se quitará del calendario: «' + e.title + '». No se puede deshacer.',
@@ -288,6 +298,7 @@
       danger: true
     }).then(function (ok) {
       if (!ok) return;
+      if (modalApi) modalApi.close();
       store.remove('events', e.id);
       ui.toast('Evento eliminado', 'success');
       refresh();
