@@ -217,7 +217,10 @@
                 e.location ? ' · ' + e.location : ''
               ])
             ]),
-            U.h('button.icon-btn', { style: { width: '28px', height: '28px' }, onclick: function () { openEventForm(e); }, 'aria-label': 'Editar' }, U.icon('edit'))
+            U.h('div.row.gap-1', [
+              U.h('button.icon-btn', { style: { width: '28px', height: '28px' }, onclick: function () { openEventForm(e); }, 'aria-label': 'Editar' }, U.icon('edit')),
+              U.h('button.icon-btn', { style: { width: '28px', height: '28px' }, onclick: function () { removeEvent(e); }, 'aria-label': 'Eliminar' }, U.icon('trash'))
+            ])
           ]);
         }) : [U.h('div.empty', { style: { padding: '18px 8px' } }, [
           U.h('div.empty__icon', U.icon('calendar')),
@@ -274,6 +277,20 @@
         view.selected = v.date;
         refresh();
       }
+    });
+  }
+
+  function removeEvent(e) {
+    ui.confirm({
+      title: '¿Eliminar este evento?',
+      message: 'Se quitará del calendario: «' + e.title + '». No se puede deshacer.',
+      okLabel: 'Sí, eliminar',
+      danger: true
+    }).then(function (ok) {
+      if (!ok) return;
+      store.remove('events', e.id);
+      ui.toast('Evento eliminado', 'success');
+      refresh();
     });
   }
 
