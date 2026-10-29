@@ -28,7 +28,7 @@
         initials: 'ES',
         university: 'Mi universidad',
         course: '1º curso',
-        plan: 'free',
+        plan: 'premium',
         avatar: '🎓',
         joinedAt: U.today()
       },
@@ -38,7 +38,7 @@
         dailyGoal: 120,
         notifications: false,
         holidayRegions: ['catalunya', 'espanya'],
-        showAds: true,
+        showAds: false,
         pomodoro: { work: 25, short: 5, long: 15, cycle: 4 }
       },
       subjects: [],

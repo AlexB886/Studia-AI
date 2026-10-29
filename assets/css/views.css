@@ -449,6 +449,23 @@
 .due--over { color: var(--rose-600); font-weight: 700; }
 .due--today { color: var(--amber-600); font-weight: 700; }
 
+/* Filtro de estado (Pendientes/Todas/Completadas/Vencidas): en móvil los
+   cuatro botones se reparten el ancho a partes iguales, con área táctil
+   cómoda y sin que el texto se corte. */
+.task-filters .segmented { display: flex; width: 100%; }
+.task-filters button { flex: 1 1 0; text-align: center; min-height: 36px; }
+@media (max-width: 720px) {
+  .task-filters { flex-wrap: nowrap; }
+  .task-filters button {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 8px 4px;
+    font-size: .74rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
 /* ================= Dashboard ================= */
 .hero {
   position: relative;
