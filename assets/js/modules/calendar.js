@@ -257,8 +257,7 @@
         m = api;
         if (isNew || !api.body) return;
         var del = U.h('button.btn.btn--danger.btn--sm', { onclick: function () { removeEvent(e, m); } }, [U.icon('trash'), 'Eliminar evento']);
-        var bar = U.h('div', { style: { display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' } }, [del]);
-        api.body.insertBefore(bar, api.body.firstChild);
+        api.body.appendChild(del);
       },
       fields: [
         { name: 'title', label: 'Título', value: e.title, required: true, placeholder: 'Ej. Examen de Programación' },
