@@ -16,21 +16,21 @@ no tienes nada pendiente.
 - Estado vacío de la agenda: el botón "Añadir evento" funciona.
 
 **Pendiente / fallos:**
-- [ ] **FALLO (PR #4)**: el botón "Eliminar evento" del formulario de edición
-      **no aparece nunca**. En `ui.js`, `formModal` fija su propio `onOpen` al
-      final del objeto (`onOpen: function (api) { m = api; }`), así que el
-      `onOpen` tuyo de `openEventForm` se sobrescribe y no llega a ejecutarse.
-      **Arreglado por Héctor en la rama `hector`**: `formModal` ya acepta
-      `beforeBody:` (se coloca encima del formulario) y además **respeta el
-      `onOpen` del llamador**. Cuando esté fusionado, quita tu `onOpen` de
-      `openEventForm` y pasa el botón así:
-      `ui.formModal({ ..., beforeBody: barraConBotonEliminar, ... })`.
-- [ ] **FALLO (PR #4)**: `removeEvent(e)` desde la lista de eventos ahora deja
-      el modal de edición abierto encima (no se entera del borrado, porque el
-      `refresh()` pasa antes de que el confirm se resuelva).
-      **Herramienta ya disponible en la rama `hector`**: llama a
-      `ui.closeAllModals()` dentro del `.then()` del confirm, justo antes de
-      `store.remove(...)`. Con eso se cierran edición y confirmación a la vez.
+> ⚠️ **Acción inmediata para tu agente (Carles)**: ejecuta primero
+> `git checkout carles && git merge main`. `main` ya trae el arreglo de
+> `core/ui.js` (versión 0.3.2). **Sin eso no sigas**: el botón "Eliminar
+> evento" solo funciona en tu rama después de traer `main`. Después aplica
+> los dos ajustes siguientes y abre PR.
+- [ ] Con `main` ya fusionado, **tu botón de eliminar funciona tal cual**
+      (verificado en local y en producción). Aun así, limpia el apaño: quita
+      el `onOpen` de `openEventForm` y pasa el botón con
+      `ui.formModal({ ..., beforeBody: barraConBotonEliminar, ... })`, que es
+      la forma estable.
+- [ ] `removeEvent(e)` desde la lista de eventos deja el modal de edición
+      abierto encima (el `refresh()` pasa antes de que se resuelva el
+      confirm). Añade `ui.closeAllModals()` dentro del `.then()`, justo antes
+      de `store.remove(...)`, y quita el parámetro `modalApi` (ya no hace
+      falta).
 - [ ] El botón de "Añadir evento" solo está en el estado vacío de la agenda;
       en móvil el panel del día queda con "Sin eventos este día." sin botón
       (a 390 px el calendario es de puntos y no se ve). Añádelo también ahí.
@@ -44,18 +44,18 @@ no tienes nada pendiente.
 - Filtro por prioridad: funciona (oculta las demás prioridades).
 - Posponer vencida 7 días: funciona y actualiza la fecha.
 - Guard `inited`: evita suscriptores duplicados al volver a la vista.
+- Selector `.segmented.task-filters`, `aria-label` del select de prioridad y
+  `premium.js` en modo creadores: **arreglado y comprobado**. Nada pendiente
+  de la revisión anterior.
 
-**Pendiente / sugerencias:**
-- [ ] **Bug de CSS**: en `assets/css/views.css:454`, el selector
-      `.task-filters .segmented` no aplica nunca porque el propio elemento
-      tiene las dos clases. Cámbialo a `.segmented.task-filters` (o `.task-filters`).
-- [ ] El `<select>` de prioridad no tiene `aria-label`: añádelo
-      (`'aria-label': 'Filtrar por prioridad'`).
-- [ ] `premium.js`: sigue diciendo "Activar Premium" / "Volver a Gratis".
-      Ahora estamos en **modo creadores** (premium por defecto): deja claro
-      que es acceso completo y quita o desactiva la opción de bajar a Gratis.
-- [ ] (Opcional) Reindentar el bloque de filtros en `tasks.js`; hay líneas
-      que han perdido la sangría.
+**Siguiente paso (lo que toca ahora):**
+- [ ] Antes de nada: `git checkout alex && git merge main` (así tienes el
+      arreglo de `core/ui.js` de la 0.3.2 y sigues las reglas de ramas).
+- [ ] Quedan vistas de tu rol sin revisar: `subjects.js` (asignaturas y
+      apuntes) y `social.js` (foro, me gusta, respuestas). Revisa estados
+      vacíos y que en móvil (360/390 px) no se descuadre nada.
+- [ ] En la PR de cada mejora, cuenta en 2 líneas qué hace (para revisarla
+      rápido).
 
 ---
 
