@@ -445,7 +445,7 @@
   /* ---------------- Diagnóstico ----------------
      Cualquier error no controlado se guarda aquí para poder copiarlo y
      reportarlo. Es la forma más rápida de saber qué falla en otro equipo. */
-  var APP_VERSION = '0.3.0';
+  var APP_VERSION = '0.3.1';
   var recentErrors = [];
 
   function captureError(kind, message, detail) {
@@ -501,6 +501,7 @@
       'Pantalla: ' + global.innerWidth + 'x' + global.innerHeight + ' @' + (global.devicePixelRatio || 1) + 'x',
       'Tema: ' + document.documentElement.getAttribute('data-theme'),
       'Vista: ' + (Studia.router.current() || '?'),
+      'Plan: ' + (state && state.profile ? state.profile.plan : '?'),
       'Datos: ' + (state
         ? state.tasks.length + ' tareas · ' + state.events.length + ' eventos · ' +
           state.sessions.length + ' sesiones · ' + state.subjects.length + ' asignaturas'
