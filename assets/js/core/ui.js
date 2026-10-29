@@ -133,6 +133,11 @@
     });
   }
 
+  /** Cierra todos los modales abiertos (p. ej. al borrar lo que editan). */
+  function closeAllModals() {
+    openModals.slice().forEach(function (m) { m.close(); });
+  }
+
   /* ---------------- Popover simple ---------------- */
   function popover(anchor, content, opts) {
     var wrap = anchor.closest('.popover-wrap') || anchor.parentNode;
@@ -215,18 +220,23 @@
       if (opts.onSubmit(values) !== false) m.close();
     }
 
+    var extraOnOpen = opts.onOpen;
+
     var m = modal({
       title: opts.title,
       subtitle: opts.subtitle,
-      body: form,
+      body: opts.beforeBody ? [opts.beforeBody, form] : form,
       actions: [
         { label: opts.cancelLabel || 'Cancelar', variant: 'ghost' },
         { label: opts.submitLabel || 'Guardar', variant: 'primary', onClick: submit }
       ],
-      onOpen: function (api) { m = api; }
+      onOpen: function (api) {
+        m = api;
+        if (extraOnOpen) extraOnOpen(api);
+      }
     });
     return m;
   }
 
-  Studia.ui = { toast: toast, modal: modal, confirm: confirm, popover: popover, formModal: formModal };
+  Studia.ui = { toast: toast, modal: modal, confirm: confirm, popover: popover, formModal: formModal, closeAllModals: closeAllModals };
 })(window);

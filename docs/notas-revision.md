@@ -20,15 +20,17 @@ no tienes nada pendiente.
       **no aparece nunca**. En `ui.js`, `formModal` fija su propio `onOpen` al
       final del objeto (`onOpen: function (api) { m = api; }`), así que el
       `onOpen` tuyo de `openEventForm` se sobrescribe y no llega a ejecutarse.
-      Opciones: meter el botón dentro de `body:` (envuelve el `form` en un
-      contenedor junto al botón) **o** añadir en `core/ui.js` una opción tipo
-      `headerBody`/`beforeBody` a `formModal` (avisa a Héctor si prefieres
-      esta, porque toca `core/`).
+      **Arreglado por Héctor en la rama `hector`**: `formModal` ya acepta
+      `beforeBody:` (se coloca encima del formulario) y además **respeta el
+      `onOpen` del llamador**. Cuando esté fusionado, quita tu `onOpen` de
+      `openEventForm` y pasa el botón así:
+      `ui.formModal({ ..., beforeBody: barraConBotonEliminar, ... })`.
 - [ ] **FALLO (PR #4)**: `removeEvent(e)` desde la lista de eventos ahora deja
       el modal de edición abierto encima (no se entera del borrado, porque el
-      `refresh()` pasa antes de que el confirm se resuelva). Cierra los
-      modales abiertos al confirmar (p. ej. `ui.closeAllModals()` en `core/`,
-      cosa de Héctor) o reabrir menos cosas.
+      `refresh()` pasa antes de que el confirm se resuelva).
+      **Herramienta ya disponible en la rama `hector`**: llama a
+      `ui.closeAllModals()` dentro del `.then()` del confirm, justo antes de
+      `store.remove(...)`. Con eso se cierran edición y confirmación a la vez.
 - [ ] El botón de "Añadir evento" solo está en el estado vacío de la agenda;
       en móvil el panel del día queda con "Sin eventos este día." sin botón
       (a 390 px el calendario es de puntos y no se ve). Añádelo también ahí.
