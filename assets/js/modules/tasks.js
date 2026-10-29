@@ -48,6 +48,7 @@
               U.h('button', { class: view.filter === 'overdue' ? 'is-active' : '', onclick: function () { view.filter = 'overdue'; refresh(); } }, 'Vencidas')
             ]),
             U.h('select.select.select--sm', {
+              'aria-label': 'Filtrar por prioridad',
               onchange: function () { view.priority = this.value; refresh(); },
               style: { width: 'auto' }
             }, ['all', 'alta', 'media', 'baja'].map(function (p) {

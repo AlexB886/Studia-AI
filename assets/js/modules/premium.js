@@ -1,7 +1,8 @@
 /* =========================================================
    Studia-IA · modules/premium.js
-   Planes Gratis / Premium (según el documento del grupo) y
-   activación de prueba en modo demo.
+   Planes Gratis / Premium (según el documento del grupo).
+   Ahora mismo estamos en MODO CREADORES: el plan premium está
+   activado por defecto y no se puede bajar a Gratis.
    ========================================================= */
 (function (global) {
   'use strict';
@@ -88,17 +89,13 @@
         ])
       ]),
       U.h('div.card', [
-        U.h('div.card__head', [U.h('h3', 'Gestión de la suscripción')]),
+        U.h('div.card__head', [U.h('h3', 'Acceso del equipo')]),
         U.h('div.row.row--between.row--wrap.gap-2', [
           U.h('div', [
-            U.h('strong.small', premium ? 'Suscripción Premium activa' : 'Suscripción gratuita'),
-            U.h('p.tiny.soft', 'Puedes cambiar de plan o cancelar cuando quieras: no hay permanencia.')
+            U.h('strong.small', 'Acceso completo (modo creadores)'),
+            U.h('p.tiny.soft', 'Todas las funciones Premium están activadas para el equipo. Cuando llegue el sistema de pago real podrás elegir plan aquí.')
           ]),
-          U.h('div.row.gap-1', [
-            premium
-              ? U.h('button.btn.btn--danger.btn--sm', { onclick: cancel }, 'Cancelar suscripción')
-              : U.h('button.btn.btn--primary.btn--sm', { onclick: subscribe }, [U.icon('crown'), 'Activar Premium (demo)'])
-          ])
+          U.h('span.badge.badge--amber', 'Estás en Premium')
         ])
       ])
     ]));
@@ -123,38 +120,8 @@
         return U.h('div.plan__feature', [U.icon('check'), U.h('span', f)]);
       })),
       U.h('div.spacer'),
-      active
-        ? U.h('button.btn.btn--block' + (premium ? '.btn--amber' : '.btn--ghost'), { disabled: true }, 'Tu plan actual')
-        : (premium
-          ? U.h('button.btn.btn--amber.btn--block', { onclick: subscribe }, [U.icon('crown'), 'Probar Premium'])
-          : U.h('button.btn.btn--ghost.btn--block', { onclick: function () { store.update(function (s) { s.profile.plan = 'free'; }); ui.toast('Has vuelto al plan Gratis', 'info'); } }, 'Volver al plan Gratis'))
+      U.h('button.btn.btn--block' + (premium ? '.btn--amber' : '.btn--ghost'), { disabled: true }, premium ? 'Incluido en el modo creadores' : 'No incluido ahora')
     ]);
-  }
-
-  function subscribe() {
-    ui.confirm({
-      title: 'Activar Premium (modo demo)',
-      message: 'En esta versión no se cobra nada: simplemente se activa el plan premium en tu navegador. El pago real (Stripe) se integrará en la rama feature/premium.',
-      okLabel: 'Activar Premium',
-      cancelLabel: 'Ahora no'
-    }).then(function (ok) {
-      if (!ok) return;
-      store.update(function (s) { s.profile.plan = 'premium'; s.settings.showAds = false; });
-      ui.toast('¡Ya eres Premium! 🎉', 'success');
-    });
-  }
-
-  function cancel() {
-    ui.confirm({
-      title: '¿Cancelar la suscripción?',
-      message: 'Volverás al plan Gratis y perderás las funciones premium, pero conservarás tus datos.',
-      okLabel: 'Cancelar suscripción',
-      danger: true
-    }).then(function (ok) {
-      if (!ok) return;
-      store.update(function (s) { s.profile.plan = 'free'; s.settings.showAds = true; });
-      ui.toast('Suscripción cancelada. Tus datos siguen aquí.', 'info');
-    });
   }
 
   function refresh() {
