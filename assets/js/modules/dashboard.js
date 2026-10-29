@@ -28,7 +28,7 @@
     var level = store.levelInfo();
 
     root.appendChild(U.h('div.col.gap-2', [
-      hero(minutes, goal, level),
+      hero(minutes, goal, level, info),
       U.h('div.grid.grid-4', [
         stat('fire', 'amber', info.current, 'días de racha', 'Mejor: ' + info.best),
         stat('timer', 'brand', U.fmtMinutes(minutes), 'estudiado hoy', 'Objetivo: ' + goal + ' min'),
@@ -42,7 +42,7 @@
     ]));
   }
 
-  function hero(minutes, goal, level) {
+  function hero(minutes, goal, level, info) {
     var pct = Math.min(1, minutes / goal);
     var R = 40, C = 2 * Math.PI * R;
     return U.h('div.hero', [
@@ -52,6 +52,10 @@
           U.h('p', minutes > 0
             ? 'Ya has estudiado ' + U.fmtMinutes(minutes) + ' hoy. ' + (minutes >= goal ? '¡Objetivo cumplido!' : 'Te quedan ' + (goal - minutes) + ' min.')
             : '¿Empezamos? Un pomodoro de 25 minutos y empiezas el día con ventaja.'),
+          U.h('div.hero__streak', { title: info.best ? 'Mejor racha: ' + info.best + ' días' : '' }, [
+            U.icon('fire'),
+            U.h('span', info.current === 1 ? '1 día de racha' : info.current + ' días de racha')
+          ]),
           U.h('div.hero__actions.mt-3', [
             U.h('button.btn.btn--primary', { onclick: function () { Studia.router.go('study'); } }, [U.icon('play'), 'Empezar a estudiar']),
             U.h('button.btn.btn--ghost', { onclick: function () { Studia.router.go('calendar'); } }, [U.icon('calendar'), 'Ver calendario']),
@@ -96,6 +100,14 @@
       return { time: e.start || '', title: e.title, sub: e.location || (e.subjectId ? store.subjectName(e.subjectId) : ''), type: e.type, id: e.id };
     })).sort(function (a, b) { return (a.time || '99:99') < (b.time || '99:99') ? -1 : 1; });
 
+    function goCreate() {
+      Studia.router.go('calendar');
+      setTimeout(function () {
+        var btn = [...document.querySelectorAll('button')].find(function (b) { return b.textContent.trim() === 'Evento'; });
+        if (btn) btn.click();
+      }, 120);
+    }
+
     return U.h('div.card', [
       U.h('div.card__head', [
         U.h('div', [U.h('h3', 'Tu agenda de hoy'), U.h('p', U.fmtDate(today, { weekday: true, numeric: true }))]),
@@ -113,11 +125,24 @@
             it.sub ? U.h('div.timeline__sub', it.sub) : null
           ])
         ]);
-      })) : U.h('p.small.soft', 'Hoy no tienes nada en el calendario. Añade un bloque de estudio desde el calendario.')
+      })) : U.h('div.empty.empty--sm', [
+        U.h('div.empty__icon', U.icon('calendar')),
+        U.h('h4', 'Agenda libre hoy'),
+        U.h('p', 'No tienes clases ni eventos. Un bloque de estudio corto hoy mantiene viva la racha.'),
+        U.h('button.btn.btn--primary.btn--sm', { onclick: goCreate }, [U.icon('plus'), 'Añadir evento'])
+      ])
     ]);
   }
 
   function tasksCard(open) {
+    function goCreateTask() {
+      Studia.router.go('tasks');
+      setTimeout(function () {
+        var btn = [...document.querySelectorAll('button')].find(function (b) { return /Nueva tarea/.test(b.textContent); });
+        if (btn) btn.click();
+      }, 120);
+    }
+
     return U.h('div.card', [
       U.h('div.card__head', [
         U.h('div', [U.h('h3', 'Próximas tareas'), U.h('p', open.length + ' pendientes')]),
@@ -142,7 +167,12 @@
             ])
           ])
         ]);
-      })) : U.h('p.small.soft', '¡Sin tareas pendientes! Añade la primera desde la sección Tareas.')
+      })) : U.h('div.empty.empty--sm', [
+        U.h('div.empty__icon', U.icon('check')),
+        U.h('h4', 'Nada pendiente'),
+        U.h('p', 'Tu lista está a cero. Apunta lo que tengas que entregar para no perderle la pista.'),
+        U.h('button.btn.btn--primary.btn--sm', { onclick: goCreateTask }, [U.icon('plus'), 'Añadir tarea'])
+      ])
     ]);
   }
 
