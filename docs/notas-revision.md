@@ -4,23 +4,35 @@ Héctor revisa lo que llega a `main` y deja aquí lo que falta o se puede mejora
 **Cada persona lee solo su sección** antes de empezar. Si no aparece tu nombre,
 no tienes nada pendiente.
 
-Última revisión: tras fusionar los PR de Carles y Alex (versión 0.3.1).
+Última revisión: tras el PR #4 de Carles (versión 0.3.1).
 
 ---
 
 ## Carles · Calendario y Horario
 
 **Verificado y correcto (no rehacer):**
-- Borrar evento con confirmación: funciona y desaparece del calendario.
 - Horario `L–D`: cabecera y columnas quedan alineadas al píxel (7/7).
+- Botones de editar/eliminar a 36 px en móvil: correcto.
+- Estado vacío de la agenda: el botón "Añadir evento" funciona.
 
-**Pendiente / sugerencias:**
-- [ ] Mensajes de commit **en español** (lo pide `AGENTS.md`). Ejemplo:
-      `fix(schedule): alinear los días de lunes a domingo`.
-- [ ] Los botones de editar/eliminar del evento miden 28 px. En móvil se
-      quedan pequeños: súbelos a **34–36 px** (o añade una regla en
-      `views.css` para pantallas táctiles). Comprueba que no rompe la fila.
-- [ ] Prueba rápida en móvil (360 px): crear, editar y borrar un evento.
+**Pendiente / fallos:**
+- [ ] **FALLO (PR #4)**: el botón "Eliminar evento" del formulario de edición
+      **no aparece nunca**. En `ui.js`, `formModal` fija su propio `onOpen` al
+      final del objeto (`onOpen: function (api) { m = api; }`), así que el
+      `onOpen` tuyo de `openEventForm` se sobrescribe y no llega a ejecutarse.
+      Opciones: meter el botón dentro de `body:` (envuelve el `form` en un
+      contenedor junto al botón) **o** añadir en `core/ui.js` una opción tipo
+      `headerBody`/`beforeBody` a `formModal` (avisa a Héctor si prefieres
+      esta, porque toca `core/`).
+- [ ] **FALLO (PR #4)**: `removeEvent(e)` desde la lista de eventos ahora deja
+      el modal de edición abierto encima (no se entera del borrado, porque el
+      `refresh()` pasa antes de que el confirm se resuelva). Cierra los
+      modales abiertos al confirmar (p. ej. `ui.closeAllModals()` en `core/`,
+      cosa de Héctor) o reabrir menos cosas.
+- [ ] El botón de "Añadir evento" solo está en el estado vacío de la agenda;
+      en móvil el panel del día queda con "Sin eventos este día." sin botón
+      (a 390 px el calendario es de puntos y no se ve). Añádelo también ahí.
+- [ ] Mensajes de commit **en español** (lo pide `AGENTS.md`).
 
 ---
 
