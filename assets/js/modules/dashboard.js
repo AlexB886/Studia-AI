@@ -42,16 +42,33 @@
     ]));
   }
 
+  /* Días consecutivos sin registrar estudio (para motivar la vuelta). */
+  function daysWithoutStudy() {
+    var d = new Date();
+    var n = 0;
+    for (var i = 0; i < 30; i++) {
+      var iso = U.toISO(d);
+      if (iso === U.today()) { d = U.addDays(d, -1); continue; }
+      if ((store.get().sessions[iso] || 0) > 0) return n;
+      n++;
+      d = U.addDays(d, -1);
+    }
+    return n;
+  }
+
   function hero(minutes, goal, level, info) {
     var pct = Math.min(1, minutes / goal);
     var R = 40, C = 2 * Math.PI * R;
+    var gap = daysWithoutStudy();
     return U.h('div.hero', [
       U.h('div.hero__inner', [
         U.h('div', [
           U.h('h2', greeting() + ', ' + store.get().profile.name),
           U.h('p', minutes > 0
             ? 'Ya has estudiado ' + U.fmtMinutes(minutes) + ' hoy. ' + (minutes >= goal ? '¡Objetivo cumplido!' : 'Te quedan ' + (goal - minutes) + ' min.')
-            : '¿Empezamos? Un pomodoro de 25 minutos y empiezas el día con ventaja.'),
+            : gap >= 2
+              ? 'Llevas ' + gap + ' días sin estudiar. Retoma la racha con un pomodoro corto: 25 minutos y a casa.'
+              : '¿Empezamos? Un pomodoro de 25 minutos y empiezas el día con ventaja.'),
           U.h('div.hero__streak', { title: info.best ? 'Mejor racha: ' + info.best + ' días' : '' }, [
             U.icon('fire'),
             U.h('span', info.current === 1 ? '1 día de racha' : info.current + ' días de racha')
