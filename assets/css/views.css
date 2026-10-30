@@ -267,6 +267,29 @@
 .msg__typing i:nth-child(3) { animation-delay: .4s; }
 @keyframes blink { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } }
 
+/* Aviso de fallo de respuesta + indicador de "escribiendo" en la barra */
+.ai-retry {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 12px 10px; padding: 9px 12px;
+  border-radius: var(--radius);
+  background: var(--rose-50, rgba(244, 63, 94, .1));
+  border: 1px solid var(--rose-200, rgba(244, 63, 94, .35));
+  font-size: .8rem;
+}
+.ai-retry[hidden] { display: none; }
+.ai-retry .icon { width: 16px; height: 16px; color: var(--rose-600); flex: none; }
+.ai-retry span { flex: 1; min-width: 0; }
+
+.ai-typing-bar {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin: 0 12px 8px;
+  font-size: .74rem; color: var(--text-soft);
+}
+.ai-typing-bar[hidden] { display: none; }
+.ai-typing-bar i { width: 5px; height: 5px; border-radius: 50%; background: var(--text-soft); animation: blink 1.2s infinite; }
+.ai-typing-bar i:nth-child(3) { animation-delay: .2s; }
+.ai-typing-bar i:nth-child(4) { animation-delay: .4s; }
+
 .composer {
   display: flex; align-items: flex-end; gap: 8px;
   padding: 12px;
