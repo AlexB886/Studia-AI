@@ -190,37 +190,116 @@
     var c = existing || Object.assign({ subjectId: '', day: 0, start: '09:00', end: '10:30', room: '', type: 'class' }, defaults || {});
     var subjectOptions = store.get().subjects.map(function (s) { return { value: s.id, label: s.name }; });
 
-    ui.formModal({
+    var form = U.h('form', { onsubmit: function (ev) { ev.preventDefault(); submit(); } });
+    var m = { close: function () {} };
+    var inputs = {};
+
+    function fieldRow(f) {
+      var el = U.h('div.field');
+      if (f.label) el.appendChild(U.h('label.field__label', f.label));
+      el.appendChild(buildInput(f));
+      if (f.hint) el.appendChild(U.h('span.field__hint', f.hint));
+      return el;
+    }
+
+    function buildInput(f) {
+      var input;
+      if (f.type === 'select') {
+        input = U.h('select.select', { name: f.name });
+        (f.options || []).forEach(function (o) {
+          var opt = U.h('option', { value: o.value }, o.label);
+          if (String(o.value) === String(f.value)) opt.selected = true;
+          input.appendChild(opt);
+        });
+      } else {
+        input = U.h('input.input', {
+          type: f.type || 'text', name: f.name,
+          placeholder: f.placeholder || '',
+          required: f.required ? true : null
+        });
+        input.value = f.value === undefined || f.value === null ? '' : f.value;
+      }
+      inputs[f.name] = input;
+      return input;
+    }
+
+    var FIELDS = [
+      { name: 'subjectId', label: 'Asignatura', type: 'select', value: c.subjectId, options: subjectOptions, required: true },
+      { name: 'day', label: 'Día', type: 'select', value: c.day, options: U.DIAS.map(function (d, i) { return { value: i, label: d }; }) },
+      { name: 'start', label: 'Hora de inicio', type: 'time', value: c.start, required: true },
+      { name: 'end', label: 'Hora de fin', type: 'time', value: c.end, required: true },
+      { name: 'type', label: 'Tipo', type: 'select', value: c.type, options: [
+        { value: 'class', label: 'Clase' }, { value: 'lab', label: 'Laboratorio' }, { value: 'study', label: 'Sesión de estudio' }
+      ] }
+    ];
+
+    FIELDS.forEach(function (f) { form.appendChild(fieldRow(f)); });
+    form.appendChild(U.h('div.field', [
+      U.h('label.field__label', 'Aula'),
+      U.h('div.row.gap-1', { style: { alignItems: 'center' } }, [
+        buildInput({ name: 'room', placeholder: 'B-204, Lab. 3…', value: c.room }),
+        isNew ? null : U.h('button.btn.btn--danger', {
+          style: { flex: 'none', height: '42px' },
+          onclick: function () { removeClass(c, m); }
+        }, [U.icon('trash'), 'Eliminar'])
+      ])
+    ]));
+
+    function submit() {
+      var values = {};
+      var missing = null;
+      Object.keys(inputs).forEach(function (k) { values[k] = inputs[k].value; });
+      if (!String(values.subjectId || '').trim()) missing = 'Asignatura';
+      else if (!String(values.start || '').trim()) missing = 'Hora de inicio';
+      else if (!String(values.end || '').trim()) missing = 'Hora de fin';
+      if (missing) {
+        ui.toast('Rellena «' + missing + '»', 'warn');
+        inputs[{ 'Asignatura': 'subjectId', 'Hora de inicio': 'start', 'Hora de fin': 'end' }[missing]].focus();
+        return false;
+      }
+      if (U.timeToMinutes(values.end) <= U.timeToMinutes(values.start)) {
+        ui.toast('La hora de fin debe ser posterior a la de inicio', 'warn');
+        return false;
+      }
+      var payload = {
+        subjectId: values.subjectId, day: +values.day, start: values.start, end: values.end, room: values.room, type: values.type
+      };
+      if (isNew) {
+        store.add('timetable', payload);
+        ui.toast('Clase añadida al horario', 'success');
+      } else {
+        store.updateRow('timetable', c.id, payload);
+        ui.toast('Clase actualizada', 'success');
+      }
+      refresh();
+      m.close();
+      return true;
+    }
+
+    m = ui.modal({
       title: isNew ? 'Nueva clase' : 'Editar clase',
       subtitle: 'El horario se actualiza al instante y avisa de solapamientos.',
-      fields: [
-        { name: 'subjectId', label: 'Asignatura', type: 'select', value: c.subjectId, options: subjectOptions, required: true },
-        { name: 'day', label: 'Día', type: 'select', value: c.day, options: U.DIAS.map(function (d, i) { return { value: i, label: d }; }) },
-        { name: 'start', label: 'Hora de inicio', type: 'time', value: c.start, required: true },
-        { name: 'end', label: 'Hora de fin', type: 'time', value: c.end, required: true },
-        { name: 'room', label: 'Aula', value: c.room, placeholder: 'B-204, Lab. 3…' },
-        { name: 'type', label: 'Tipo', type: 'select', value: c.type, options: [
-          { value: 'class', label: 'Clase' }, { value: 'lab', label: 'Laboratorio' }, { value: 'study', label: 'Sesión de estudio' }
-        ] }
+      body: form,
+      actions: [
+        { label: 'Cancelar', variant: 'ghost' },
+        { label: isNew ? 'Añadir al horario' : 'Guardar', variant: 'primary', onClick: function () { submit(); return false; } }
       ],
-      submitLabel: isNew ? 'Añadir al horario' : 'Guardar',
-      onSubmit: function (v) {
-        if (U.timeToMinutes(v.end) <= U.timeToMinutes(v.start)) {
-          ui.toast('La hora de fin debe ser posterior a la de inicio', 'warn');
-          return false;
-        }
-        var payload = {
-          subjectId: v.subjectId, day: +v.day, start: v.start, end: v.end, room: v.room, type: v.type
-        };
-        if (isNew) {
-          store.add('timetable', payload);
-          ui.toast('Clase añadida al horario', 'success');
-        } else {
-          store.updateRow('timetable', c.id, payload);
-          ui.toast('Clase actualizada', 'success');
-        }
-        refresh();
-      }
+      onOpen: function (api) { m = api; }
+    });
+  }
+
+  function removeClass(c, modalApi) {
+    ui.confirm({
+      title: '¿Eliminar esta clase?',
+      message: U.DIAS[c.day] + ' ' + c.start.slice(0, 5) + '–' + c.end.slice(0, 5) + ' · ' + store.subjectName(c.subjectId) + '. Se quitará del horario.',
+      okLabel: 'Sí, eliminar',
+      danger: true
+    }).then(function (ok) {
+      if (!ok) return;
+      if (modalApi) modalApi.close();
+      store.remove('timetable', c.id);
+      ui.toast('Clase eliminada del horario', 'success');
+      refresh();
     });
   }
 
