@@ -136,6 +136,7 @@
 .tt__col { position: relative; border-left: 1px solid var(--border); min-height: 100%; }
 .tt__col--today { background: color-mix(in srgb, var(--brand-500) 2.5%, transparent); }
 .tt__grid-line { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--border); }
+.tt__grid-line--half { border-top-style: dotted; opacity: .55; }
 .tt__now { position: absolute; left: 0; right: 0; height: 2px; background: var(--rose-500); z-index: 3; pointer-events: none; }
 .tt__now::before { content: ""; position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--rose-500); }
 .tt__class {

@@ -10,8 +10,8 @@
   var U = Studia.utils, store = Studia.store, ui = Studia.ui;
 
   var HOUR_H = 56;          // px por hora
-  var START_H = 8;
-  var END_H = 21;
+  var DEFAULT_START_H = 8;
+  var DEFAULT_END_H = 21;
   var WEEK = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
   var COLORS = ['var(--brand-500)', 'var(--mint-500)', 'var(--amber-500)', 'var(--rose-500)', 'var(--sky-500)', 'var(--violet-500)'];
 
@@ -19,6 +19,19 @@
 
   function visibleClasses() {
     return store.get().timetable.filter(function (c) { return !view.hiddenSubjects[c.subjectId]; });
+  }
+
+  /* Rango de horas visible: de la clase más temprana a la más tarde,
+     con mínimo el tramo por defecto (8:00–21:00). */
+  function visibleHoursRange() {
+    var startH = DEFAULT_START_H, endH = DEFAULT_END_H;
+    store.get().timetable.forEach(function (c) {
+      var s = U.timeToMinutes(c.start), e = U.timeToMinutes(c.end);
+      if (!isNaN(s)) startH = Math.min(startH, Math.floor(s / 60));
+      if (!isNaN(e)) endH = Math.max(endH, Math.ceil(e / 60));
+    });
+    if (endH <= startH) endH = startH + 1;
+    return { startH: startH, endH: endH };
   }
 
   function subjectIdsInTimetable() {
@@ -109,6 +122,19 @@
   }
 
   function scheduleCard() {
+    var range = visibleHoursRange();
+    var START_H = range.startH, END_H = range.endH;
+    var startMin = START_H * 60, endMin = END_H * 60;
+
+    function hourLabel(m) {
+      var h = Math.floor(m / 60);
+      var mm = m % 60;
+      if (h >= 24) h -= 24;
+      return U.pad(h) + ':' + (mm ? U.pad(mm) : '00');
+    }
+
+    function yOf(min) { return (min - startMin) / 60 * HOUR_H; }
+
     var days = view.showWeekend ? 7 : 5;
     var todayIdx = U.dayIndex(new Date());
     var gridTpl = '64px repeat(' + days + ', minmax(0, 1fr))';
@@ -120,10 +146,13 @@
 
     var body = U.h('div.tt__body', { style: { gridTemplateColumns: gridTpl } });
 
-    /* Columna de horas */
+    /* Columna de horas: cada franja de 30 min, etiqueta en hora en punto */
     var hours = U.h('div.tt__hours');
-    for (var hh = START_H; hh < END_H; hh++) {
-      hours.appendChild(U.h('div.tt__hour', U.pad(hh) + ':00'));
+    for (var m30 = startMin; m30 < endMin; m30 += 30) {
+      hours.appendChild(U.h('div.tt__hour', {
+        style: { height: (HOUR_H / 2) + 'px' },
+        title: hourLabel(m30)
+      }, (m30 % 60 === 0 ? hourLabel(m30) : '')));
     }
     body.appendChild(hours);
 
@@ -131,20 +160,22 @@
     for (var day = 0; day < days; day++) {
       (function (day) {
         var col = U.h('div.tt__col' + (day === todayIdx ? '.tt__col--today' : ''));
-        for (var line = START_H; line < END_H; line++) {
-          col.appendChild(U.h('div.tt__grid-line', { style: { top: ((line - START_H) * HOUR_H) + 'px' } }));
+        for (var q = START_H * 4; q < END_H * 4; q++) {
+          col.appendChild(U.h('div.tt__grid-line' + (q % 2 ? '.tt__grid-line--half' : ''), {
+            style: { top: ((q * 15 - startMin) / 60 * HOUR_H) + 'px' }
+          }));
         }
         col.addEventListener('click', function (ev) {
           if (ev.target !== col) return;
           var rect = col.getBoundingClientRect();
-          var minutes = START_H * 60 + Math.round((ev.clientY - rect.top) / HOUR_H * 60 / 15) * 15;
-          minutes = U.clamp(minutes, START_H * 60, (END_H - 1) * 60);
-          openForm(null, { day: day, start: U.minutesToTime(minutes), end: U.minutesToTime(Math.min(minutes + 90, END_H * 60)) });
+          var minutes = startMin + Math.round((ev.clientY - rect.top) / HOUR_H * 60 / 15) * 15;
+          minutes = U.clamp(minutes, startMin, endMin - 60);
+          openForm(null, { day: day, start: U.minutesToTime(minutes), end: U.minutesToTime(Math.min(minutes + 90, endMin)) });
         });
 
         visibleClasses().filter(function (c) { return c.day === day; }).forEach(function (c) {
           var s = U.timeToMinutes(c.start), e = U.timeToMinutes(c.end);
-          var top = (s - START_H * 60) / 60 * HOUR_H;
+          var top = yOf(s);
           var height = Math.max(26, (e - s) / 60 * HOUR_H - 3);
           var color = store.subjectColor(c.subjectId);
           col.appendChild(U.h('button.tt__class' + (isConflicting(c.id) ? '.tt__class--conflict' : ''), {
@@ -161,8 +192,8 @@
         if (day === todayIdx) {
           var now = new Date();
           var nowMin = now.getHours() * 60 + now.getMinutes();
-          if (nowMin >= START_H * 60 && nowMin <= END_H * 60) {
-            col.appendChild(U.h('div.tt__now', { style: { top: ((nowMin - START_H * 60) / 60 * HOUR_H) + 'px' } }));
+          if (nowMin >= startMin && nowMin <= endMin) {
+            col.appendChild(U.h('div.tt__now', { style: { top: yOf(nowMin) + 'px' } }));
           }
         }
         body.appendChild(col);
@@ -241,7 +272,7 @@
     var c = existing || Object.assign({ subjectId: '', day: 0, start: '09:00', end: '10:30', room: '', type: 'class' }, defaults || {});
     var subjectOptions = store.get().subjects.map(function (s) { return { value: s.id, label: s.name }; });
 
-    var form = U.h('form', { onsubmit: function (ev) { ev.preventDefault(); submit(); } });
+    var form = U.h('form', { onsubmit: function (ev) { ev.preventDefault(); if (submit() !== false) m.close(); } });
     var m = { close: function () {} };
     var inputs = {};
 
@@ -253,6 +284,16 @@
       return el;
     }
 
+    var range = visibleHoursRange();
+    var startMin = range.startH * 60, endMin = range.endH * 60;
+
+    function hourLabel(m) {
+      var h = Math.floor(m / 60);
+      var mm = m % 60;
+      if (h >= 24) h -= 24;
+      return U.pad(h) + ':' + (mm ? U.pad(mm) : '00');
+    }
+
     function buildInput(f) {
       var input;
       if (f.type === 'select') {
@@ -262,11 +303,24 @@
           if (String(o.value) === String(f.value)) opt.selected = true;
           input.appendChild(opt);
         });
+      } else if (f.type === 'minutes') {
+        input = U.h('select.select', { name: f.name });
+        var cur = U.timeToMinutes(f.value || '');
+        var exact = null;
+        for (var m = startMin; m <= endMin; m += 15) {
+          var op = U.h('option', { value: U.minutesToTime(m % 1440) }, hourLabel(m));
+          if (m === cur) exact = op;
+          input.appendChild(op);
+        }
+        if (!exact && !isNaN(cur)) {
+          exact = U.h('option', { value: U.minutesToTime(cur % 1440) }, hourLabel(cur));
+          input.appendChild(exact);
+        }
+        if (exact) exact.selected = true;
       } else {
         input = U.h('input.input', {
           type: f.type || 'text', name: f.name,
-          placeholder: f.placeholder || '',
-          required: f.required ? true : null
+          placeholder: f.placeholder || ''
         });
         input.value = f.value === undefined || f.value === null ? '' : f.value;
       }
@@ -277,8 +331,8 @@
     var FIELDS = [
       { name: 'subjectId', label: 'Asignatura', type: 'select', value: c.subjectId, options: subjectOptions, required: true },
       { name: 'day', label: 'Día', type: 'select', value: c.day, options: U.DIAS.map(function (d, i) { return { value: i, label: d }; }) },
-      { name: 'start', label: 'Hora de inicio', type: 'time', value: c.start, required: true },
-      { name: 'end', label: 'Hora de fin', type: 'time', value: c.end, required: true },
+      { name: 'start', label: 'Hora de inicio', type: 'minutes', value: c.start, required: true },
+      { name: 'end', label: 'Hora de fin', type: 'minutes', value: c.end, required: true },
       { name: 'type', label: 'Tipo', type: 'select', value: c.type, options: [
         { value: 'class', label: 'Clase' }, { value: 'lab', label: 'Laboratorio' }, { value: 'study', label: 'Sesión de estudio' }
       ] }
@@ -323,8 +377,6 @@
         ui.toast('Clase actualizada', 'success');
       }
       refresh();
-      m.close();
-      return true;
     }
 
     m = ui.modal({
@@ -333,7 +385,7 @@
       body: form,
       actions: [
         { label: 'Cancelar', variant: 'ghost' },
-        { label: isNew ? 'Añadir al horario' : 'Guardar', variant: 'primary', onClick: function () { submit(); return false; } }
+        { label: isNew ? 'Añadir al horario' : 'Guardar', variant: 'primary', onClick: function () { if (submit() !== false) m.close(); return false; } }
       ],
       onOpen: function (api) { m = api; }
     });
