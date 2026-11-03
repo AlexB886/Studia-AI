@@ -55,7 +55,14 @@
     });
     chips.push(U.h('button.btn.btn--ghost.btn--sm', {
       style: { marginLeft: 'auto' },
-      onclick: function () { view.hiddenSubjects = {}; refresh(); }
+      onclick: function () {
+        if (all) {
+          ids.forEach(function (id) { view.hiddenSubjects[id] = true; });
+        } else {
+          view.hiddenSubjects = {};
+        }
+        refresh();
+      }
     }, all ? 'Ocultar todas' : 'Mostrar todas'));
     return U.h('div.row.row--wrap.gap-1', { style: { padding: '0 18px 12px' } }, chips);
   }
