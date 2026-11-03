@@ -3,18 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#4f46e5" />
-  <meta name="app-version" content="0.3.2" />
+  <meta name="theme-color" content="#6d28d9" />
+  <meta name="app-version" content="0.4.0" />
   <meta name="mobile-web-app-capable" content="yes" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png" />
   <title>Studia-IA · Tu espacio de estudio</title>
   <meta name="description" content="Studia-IA: organiza tus asignaturas, planifica tu estudio y mantén la racha." />
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="assets/css/base.css?v=0.3.2" />
-  <link rel="stylesheet" href="assets/css/layout.css?v=0.3.2" />
-  <link rel="stylesheet" href="assets/css/components.css?v=0.3.2" />
-  <link rel="stylesheet" href="assets/css/views.css?v=0.3.2" />
+  <link rel="stylesheet" href="assets/css/base.css?v=0.4.0" />
+  <link rel="stylesheet" href="assets/css/layout.css?v=0.4.0" />
+  <link rel="stylesheet" href="assets/css/components.css?v=0.4.0" />
+  <link rel="stylesheet" href="assets/css/views.css?v=0.4.0" />
 </head>
 <body>
   <button class="skip-link" type="button" id="skipToMain">Saltar al contenido</button>
@@ -71,6 +71,7 @@
     <symbol id="i-languages" viewBox="0 0 24 24"><path d="M3 6h9M7.5 4v2c0 4-2 7-4.5 8"/><path d="M5 11c1.5 2.5 4 4 6.5 4.5"/><path d="m13 20 4-9 4 9M14.8 17h4.4"/></symbol>
     <symbol id="i-file" viewBox="0 0 24 24"><path d="M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9z"/><path d="M13 3v6h6"/></symbol>
     <symbol id="i-exit" viewBox="0 0 24 24"><path d="M14 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7"/><path d="M17 8.5 20.5 12 17 15.5M20 12H10"/></symbol>
+    <symbol id="i-check-square" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><path d="m8 12 3 3 5-6"/></symbol>
     <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
   </svg>
 
@@ -81,7 +82,7 @@
         <div class="brand__mark" aria-hidden="true">S<span class="brand__dot">.</span></div>
         <div class="brand__text">
           <strong>Studia<span>-IA</span></strong>
-          <small id="brandPlan">Plan gratuito</small>
+          <small id="brandPlan">Estudio inteligente</small>
         </div>
         <button class="icon-btn sidebar__close" id="btnCloseSidebar" aria-label="Cerrar menú">
           <svg class="icon"><use href="#i-close"></use></svg>
@@ -89,9 +90,21 @@
       </div>
 
       <nav class="nav" id="nav" aria-label="Navegación principal">
-        <p class="nav__label">Planificación</p>
+        <p class="nav__label">Principal</p>
         <a class="nav__item" href="#/dashboard" data-nav="dashboard">
-          <svg class="icon"><use href="#i-home"></use></svg><span>Panel</span>
+          <svg class="icon"><use href="#i-home"></use></svg><span>Inicio</span>
+        </a>
+        <a class="nav__item" href="#/ai" data-nav="ai">
+          <svg class="icon"><use href="#i-robot"></use></svg><span>Luna (IA)</span>
+        </a>
+
+        <p class="nav__label">Organización</p>
+        <a class="nav__item" href="#/tasks" data-nav="tasks">
+          <svg class="icon"><use href="#i-check-square"></use></svg><span>Tareas</span>
+          <em class="nav__badge" id="navBadgeTasks">0</em>
+        </a>
+        <a class="nav__item" href="#/subjects" data-nav="subjects">
+          <svg class="icon"><use href="#i-book"></use></svg><span>Asignaturas</span>
         </a>
         <a class="nav__item" href="#/calendar" data-nav="calendar">
           <svg class="icon"><use href="#i-calendar"></use></svg><span>Calendario</span>
@@ -100,26 +113,16 @@
         <a class="nav__item" href="#/schedule" data-nav="schedule">
           <svg class="icon"><use href="#i-clock"></use></svg><span>Horario</span>
         </a>
+
+        <p class="nav__label">Estudio</p>
         <a class="nav__item" href="#/study" data-nav="study">
           <svg class="icon"><use href="#i-timer"></use></svg><span>Estudio</span>
         </a>
         <a class="nav__item" href="#/progress" data-nav="progress">
-          <svg class="icon"><use href="#i-chart"></use></svg><span>Progresión</span>
+          <svg class="icon"><use href="#i-chart"></use></svg><span>Progreso</span>
         </a>
 
-        <p class="nav__label">Academia</p>
-        <a class="nav__item" href="#/subjects" data-nav="subjects">
-          <svg class="icon"><use href="#i-book"></use></svg><span>Asignaturas</span>
-        </a>
-        <a class="nav__item" href="#/tasks" data-nav="tasks">
-          <svg class="icon"><use href="#i-check"></use></svg><span>Tareas</span>
-          <em class="nav__badge" id="navBadgeTasks">0</em>
-        </a>
-        <a class="nav__item" href="#/ai" data-nav="ai">
-          <svg class="icon"><use href="#i-robot"></use></svg><span>Luna (IA)</span>
-        </a>
-
-        <p class="nav__label">Comunidad</p>
+        <p class="nav__label">Más</p>
         <a class="nav__item" href="#/social" data-nav="social">
           <svg class="icon"><use href="#i-users"></use></svg><span>Social</span>
         </a>
@@ -137,6 +140,9 @@
       </div>
 
       <div class="sidebar__foot">
+        <button class="nav__item nav__item--btn" id="btnSidebarProfile">
+          <svg class="icon"><use href="#i-users"></use></svg><span>Mi perfil</span>
+        </button>
         <button class="nav__item nav__item--btn" id="btnSettings">
           <svg class="icon"><use href="#i-settings"></use></svg><span>Ajustes</span>
         </button>
@@ -192,27 +198,27 @@
   <div id="toastRoot" class="toast-root" aria-live="polite"></div>
 
   <!-- ===== Núcleo ===== -->
-  <script src="assets/js/core/utils.js?v=0.3.2"></script>
-  <script src="assets/js/core/ui.js?v=0.3.2"></script>
-  <script src="assets/js/core/db.js?v=0.3.2"></script>
-  <script src="assets/js/core/store.js?v=0.3.2"></script>
-  <script src="assets/js/core/router.js?v=0.3.2"></script>
+  <script src="assets/js/core/utils.js?v=0.4.0"></script>
+  <script src="assets/js/core/ui.js?v=0.4.0"></script>
+  <script src="assets/js/core/db.js?v=0.4.0"></script>
+  <script src="assets/js/core/store.js?v=0.4.0"></script>
+  <script src="assets/js/core/router.js?v=0.4.0"></script>
   <!-- ===== Datos ===== -->
-  <script src="assets/js/data/holidays.js?v=0.3.2"></script>
-  <script src="assets/js/data/rewards.js?v=0.3.2"></script>
-  <script src="assets/js/data/seed.js?v=0.3.2"></script>
+  <script src="assets/js/data/holidays.js?v=0.4.0"></script>
+  <script src="assets/js/data/rewards.js?v=0.4.0"></script>
+  <script src="assets/js/data/seed.js?v=0.4.0"></script>
   <!-- ===== Módulos ===== -->
-  <script src="assets/js/modules/dashboard.js?v=0.3.2"></script>
-  <script src="assets/js/modules/calendar.js?v=0.3.2"></script>
-  <script src="assets/js/modules/schedule.js?v=0.3.2"></script>
-  <script src="assets/js/modules/study.js?v=0.3.2"></script>
-  <script src="assets/js/modules/progress.js?v=0.3.2"></script>
-  <script src="assets/js/modules/subjects.js?v=0.3.2"></script>
-  <script src="assets/js/modules/tasks.js?v=0.3.2"></script>
-  <script src="assets/js/modules/ai.js?v=0.3.2"></script>
-  <script src="assets/js/modules/social.js?v=0.3.2"></script>
-  <script src="assets/js/modules/premium.js?v=0.3.2"></script>
+  <script src="assets/js/modules/dashboard.js?v=0.4.0"></script>
+  <script src="assets/js/modules/calendar.js?v=0.4.0"></script>
+  <script src="assets/js/modules/schedule.js?v=0.4.0"></script>
+  <script src="assets/js/modules/study.js?v=0.4.0"></script>
+  <script src="assets/js/modules/progress.js?v=0.4.0"></script>
+  <script src="assets/js/modules/subjects.js?v=0.4.0"></script>
+  <script src="assets/js/modules/tasks.js?v=0.4.0"></script>
+  <script src="assets/js/modules/ai.js?v=0.4.0"></script>
+  <script src="assets/js/modules/social.js?v=0.4.0"></script>
+  <script src="assets/js/modules/premium.js?v=0.4.0"></script>
   <!-- ===== Arranque ===== -->
-  <script src="assets/js/main.js?v=0.3.2"></script>
+  <script src="assets/js/main.js?v=0.4.0"></script>
 </body>
 </html>

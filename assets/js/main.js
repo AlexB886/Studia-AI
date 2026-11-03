@@ -181,10 +181,9 @@
 
   /* ---------------- Perfil y ajustes ---------------- */
   function wireProfile() {
-    document.getElementById('btnProfile').addEventListener('click', function (e) {
-      e.stopPropagation();
+    function showProfile(anchor) {
       var p = store.get().profile;
-      ui.popover(document.getElementById('btnProfile'), U.h('div.col.gap-2', { style: { padding: '6px' } }, [
+      ui.popover(anchor, U.h('div.col.gap-2', { style: { padding: '6px' } }, [
         U.h('div', [U.h('strong.small', p.name), U.h('p.tiny.soft', p.university || '')]),
         U.h('button.btn.btn--ghost.btn--sm.btn--block', { onclick: function () { openSettings(); } }, [U.icon('settings'), 'Ajustes']),
         U.h('button.btn.btn--ghost.btn--sm.btn--block', {
@@ -200,6 +199,14 @@
           }
         }, [U.icon('reset'), 'Restablecer demo'])
       ]));
+    }
+    ['btnProfile', 'btnSidebarProfile'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('click', function (e) {
+        e.stopPropagation();
+        showProfile(el);
+      });
     });
   }
 
@@ -347,7 +354,7 @@
     }
 
     var plan = document.getElementById('brandPlan');
-    if (plan) plan.textContent = state.profile.plan === 'premium' ? 'Plan Premium ✨' : 'Plan gratuito';
+    if (plan) plan.textContent = state.profile.plan === 'premium' ? 'Plan Premium' : 'Plan gratuito';
 
     var initials = document.getElementById('avatarInitials');
     if (initials) initials.textContent = state.profile.initials || 'ES';
@@ -445,7 +452,7 @@
   /* ---------------- Diagnóstico ----------------
      Cualquier error no controlado se guarda aquí para poder copiarlo y
      reportarlo. Es la forma más rápida de saber qué falla en otro equipo. */
-  var APP_VERSION = '0.3.2';
+  var APP_VERSION = '0.4.0';
   var recentErrors = [];
 
   function captureError(kind, message, detail) {
