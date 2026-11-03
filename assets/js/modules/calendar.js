@@ -21,7 +21,8 @@
     month: U.startOfMonth(new Date()),
     selected: U.today(),
     mode: 'month',
-    filters: { exam: true, class: true, deadline: true, study: true, other: true }
+    filters: { exam: true, class: true, deadline: true, study: true, other: true },
+    hiddenSubjects: {}
   };
 
   /* ---------------- Datos ---------------- */
@@ -31,7 +32,47 @@
   }
 
   function eventsOf(iso) {
-    return store.eventsOn(iso).filter(function (e) { return view.filters[e.type] !== false; });
+    return store.eventsOn(iso).filter(function (e) {
+      return view.filters[e.type] !== false && !view.hiddenSubjects[e.subjectId || ''];
+    });
+  }
+
+  function subjectIdsWithEvents() {
+    var ids = [];
+    store.get().events.forEach(function (e) {
+      if (e.subjectId && ids.indexOf(e.subjectId) === -1) ids.push(e.subjectId);
+    });
+    return ids.sort(function (a, b) {
+      return store.subjectName(a).localeCompare(store.subjectName(b), 'es');
+    });
+  }
+
+  function subjectFilterRow() {
+    var ids = subjectIdsWithEvents();
+    if (!ids.length) return null;
+    var all = ids.every(function (id) { return !view.hiddenSubjects[id]; });
+    var chips = ids.map(function (id) {
+      var on = !view.hiddenSubjects[id];
+      var color = store.subjectColor(id);
+      return U.h('button.badge.badge--outline', {
+        style: {
+          cursor: 'pointer',
+          opacity: on ? '1' : '.45',
+          borderColor: on ? color : 'var(--border)',
+          color: on ? color : 'var(--text-soft)'
+        },
+        title: on ? 'Ocultar ' + store.subjectName(id) : 'Mostrar ' + store.subjectName(id),
+        onclick: function () {
+          if (view.hiddenSubjects[id]) delete view.hiddenSubjects[id];
+          else view.hiddenSubjects[id] = true;
+          refresh();
+        }
+      }, [U.h('span.dot-color', { style: { background: color } }), store.subjectName(id)]);
+    });
+    chips.push(U.h('button.btn.btn--ghost.btn--sm', {
+      onclick: function () { view.hiddenSubjects = {}; refresh(); }
+    }, all ? 'Ocultar todas' : 'Mostrar todas'));
+    return U.h('div.row.row--wrap.gap-1', chips);
   }
 
   /* ---------------- Render ---------------- */
@@ -68,6 +109,8 @@
       return chip;
     }));
 
+    var subBar = subjectFilterRow();
+
     return U.h('div.card.mb-3', [
       U.h('div.row.row--between.row--wrap.gap-2.cal-head', [
         U.h('div.row.row--wrap.gap-1.cal-nav', [
@@ -89,7 +132,11 @@
       ]),
       U.h('div.row.row--between.row--wrap.mt-2', [legend,
         U.h('span.tiny.soft', 'Sáb y dom en rojo · días festivos marcados')
-      ])
+      ]),
+      subBar ? U.h('div.row.row--wrap.gap-1.mt-2', { style: { alignItems: 'center' } }, [
+        U.h('span.tiny.soft', 'Por asignatura:'),
+        subBar
+      ]) : null
     ]);
   }
 
