@@ -10,6 +10,7 @@
   var U = Studia.utils, store = Studia.store, ui = Studia.ui;
 
   var view = { range: 30 };
+  var chartSeq = 0;   // ids únicos: dos SVG en la página no pueden compartir 'areaGrad'
 
   /* ---------------- Estadísticas ---------------- */
   function stats(range) {
@@ -64,10 +65,13 @@
     function x(i) { return padL + i * step; }
     function y(v) { return padT + innerH - (v / max) * innerH; }
 
-    var svg = U.h('svg.chart', { viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'none', style: { height: '260px' } });
+    var svg = U.h('svg.chart', { viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'none' });
 
+    /* el id del degradado va numerado: si no, dos SVG en la página (o un
+       re-render con el anterior aún montado) pelean por el mismo 'areaGrad' */
+    var gradId = 'areaGrad-' + (++chartSeq);
     svg.appendChild(U.h('defs', [
-      U.h('linearGradient', { id: 'areaGrad', x1: '0', y1: '0', x2: '0', y2: '1' }, [
+      U.h('linearGradient', { id: gradId, x1: '0', y1: '0', x2: '0', y2: '1' }, [
         U.h('stop', { offset: '0%', 'stop-color': 'var(--brand-500)', 'stop-opacity': '.28' }),
         U.h('stop', { offset: '100%', 'stop-color': 'var(--brand-500)', 'stop-opacity': '0' })
       ])
@@ -84,8 +88,14 @@
     var linePath = pts.map(function (p, i) { return (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' ');
     var areaPath = linePath + ' L' + x(data.length - 1).toFixed(1) + ' ' + (padT + innerH) + ' L' + padL + ' ' + (padT + innerH) + ' Z';
 
-    svg.appendChild(U.h('path', { class: 'chart__area', d: areaPath }));
-    svg.appendChild(U.h('path', { class: 'chart__line', d: linePath }));
+    /* Con 0 sesiones la línea queda pegada al suelo, que parece un fallo:
+       se avisa en su lugar y solo se dibuja la rejilla de referencia. */
+    var empty = !U.sum(data, function (d) { return d.minutes; });
+
+    if (!empty) {
+      svg.appendChild(U.h('path', { class: 'chart__area', d: areaPath, style: { fill: 'url(#' + gradId + ')' } }));
+      svg.appendChild(U.h('path', { class: 'chart__line', d: linePath }));
+    }
 
     pts.forEach(function (p, i) {
       var d = data[i];
@@ -95,8 +105,17 @@
       svg.appendChild(title);
     });
 
-    /* eje X */
-    var every = Math.ceil(data.length / 10);
+    if (empty) {
+      svg.appendChild(U.h('text', {
+        class: 'chart__label', x: W / 2, y: padT + innerH / 2,
+        'text-anchor': 'middle', style: { 'font-size': '15px' }
+      }, 'Aún no hay sesiones en este periodo'));
+    }
+
+    /* eje X: en etiquetas estrechas (móvil) se solapan, así que menos */
+    var every = (global.innerWidth || 1024) < 600
+      ? Math.max(2, Math.ceil(data.length / 5))
+      : Math.ceil(data.length / 10);
     data.forEach(function (d, i) {
       if (i % every !== 0 && i !== data.length - 1) return;
       svg.appendChild(U.h('text', { class: 'chart__label', x: x(i), y: H - 8, 'text-anchor': 'middle' }, U.fmtDate(d.iso, { short: true, day: true })));
@@ -112,7 +131,7 @@
     var bw = Math.min(70, (innerW / Math.max(1, items.length)) * 0.55);
     var gap = (innerW - bw * items.length) / Math.max(1, items.length);
 
-    var svg = U.h('svg.chart', { viewBox: '0 0 ' + W + ' ' + H, style: { height: '230px' } });
+    var svg = U.h('svg.chart.chart--bars', { viewBox: '0 0 ' + W + ' ' + H });
     for (var g = 0; g <= 4; g++) {
       var v = (max / 4) * g;
       var yy = padT + innerH - (v / max) * innerH;
@@ -147,12 +166,12 @@
       var iso = U.toISO(d);
       var mins = history[iso] || 0;
       var level = mins === 0 ? 0 : mins < 30 ? 1 : mins < 60 ? 2 : mins < 120 ? 3 : 4;
-      cells.push({ iso: iso, level: level, future: d > new Date() });
+      cells.push({ iso: iso, level: level, mins: mins, future: d > new Date() });
     }
     var grid = U.h('div.heat');
     cells.forEach(function (c) {
       var cell = U.h('div.heat__cell' + (c.level ? '.heat__cell--l' + c.level : ''), {
-        title: c.iso + ': ' + (c.level ? 'estudiado' : 'sin estudiar'),
+        title: U.fmtDate(c.iso, { weekday: true }) + ': ' + (c.mins ? U.fmtMinutes(c.mins) : 'sin estudiar'),
         style: c.future ? { opacity: '.35' } : null
       });
       grid.appendChild(cell);
@@ -170,8 +189,8 @@
 
     root.appendChild(U.h('div.col.gap-2', [
       U.h('div.grid.grid-4', [
-        statCard('timer', 'var(--brand-500)', U.fmtHours(s.total), 'Tiempo total', 'Últimos ' + view.range + ' días', 'brand'),
-        statCard('chart', 'var(--mint-500)', U.fmtHours(s.week), 'Esta semana', 'Últimos 7 días', 'mint'),
+        statCard('timer', 'var(--brand-500)', fmtTime(s.total), 'Tiempo total', 'Últimos ' + view.range + ' días', 'brand'),
+        statCard('chart', 'var(--mint-500)', fmtTime(s.week), 'Esta semana', 'Últimos 7 días', 'mint'),
         statCard('fire', 'var(--amber-500)', info.current + ' días', 'Racha actual', 'Mejor: ' + info.best + ' días', 'amber'),
         statCard('star', 'var(--violet-500)', 'Nivel ' + lvl.level, lvl.xp + ' XP', 'Para el siguiente: ' + (lvl.needed - lvl.current) + ' XP', 'violet')
       ]),
@@ -192,10 +211,7 @@
 
       U.h('div.grid.grid--split', [
         U.h('div.col.gap-2', [
-          U.h('div.card', [
-            U.h('div.card__head', [U.h('div', [U.h('h3', 'Reparto por asignatura'), U.h('p', 'Dónde se va tu tiempo')])]),
-            s.bySubject.length ? barChart(s.bySubject) : U.h('p.small.soft', 'Aún no hay sesiones en este periodo.')
-          ]),
+          subjectCard(s),
           U.h('div.card', [
             U.h('div.card__head', [
               U.h('div', [U.h('h3', 'Mapa de actividad'), U.h('p', 'Últimas 16 semanas')]),
@@ -217,6 +233,18 @@
     ]));
   }
 
+  /* El desglose por asignatura se leía como reparto pero era el total del
+     rango: la cabecera lo dice ahora claro. */
+  function subjectCard(s) {
+    return U.h('div.card', [
+      U.h('div.card__head', [
+        U.h('div', [U.h('h3', 'Reparto por asignatura'), U.h('p', 'Cómo se reparte tu tiempo')]),
+        U.h('span.badge', U.fmtMinutes(s.total))
+      ]),
+      s.bySubject.length ? barChart(s.bySubject) : U.h('p.small.soft', 'Aún no hay sesiones en este periodo.')
+    ]);
+  }
+
   function statCard(ic, color, value, label, sub, tone) {
     return U.h('div.stat', [
       U.h('div.stat__icon' + (tone ? '.stat__icon--' + tone : ''), { style: { color: color } }, U.icon(ic)),
@@ -226,6 +254,11 @@
         U.h('span.tiny.soft', sub)
       ])
     ]);
+  }
+
+  /* '0 h' se lee como que la tarjeta está vacía: 0 horas se muestra en min. */
+  function fmtTime(min) {
+    return min < 60 ? (min || 0) + ' min' : U.fmtHours(min);
   }
 
   function levelCard(lvl) {
