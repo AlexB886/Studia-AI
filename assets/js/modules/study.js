@@ -14,14 +14,17 @@
     remaining: 25 * 60,
     total: 25 * 60,
     running: false,
-    endAt: null,
+    endAt: null,             // epoch ms en que debe terminar el tramo actual
     cycle: 0,
     subjectId: null,
     taskId: null,
     notes: '',
-    tick: null,
-    lastFinishedEndAt: null
+    tick: null,              // interval de refresco visual (no cuenta nada)
+    lastFinishedEndAt: null,
+    pausedByVisibility: false    // el pomodoro se congeló al ocultar la pestaña
   };
+
+  var TICK_MS = 250;
 
   var MODES = {
     work: { label: 'Enfoque', color: 'var(--brand-500)' },
@@ -60,8 +63,65 @@
     return p.long * 60;
   }
 
-  function setMode(mode, autostart) {
+  /* Devuelve true si quedaba una ronda a medias que conservar en pausa. */
+  function parkWork() {
+    if (!timer.running) return false;
+    timer.remaining = Math.max(0, Math.round((timer.endAt - Date.now()) / 1000));
     stop();
+    return timer.mode === 'work' && timer.remaining > 0 && timer.remaining < timer.total;
+  }
+
+  /* Cierra el reloj y escribe en el acto. `store.flush()` escribe en
+     localStorage sin pasar por el debounce, así que vale dentro de
+     `pagehide`/`beforeunload`, donde una promesa puede no resolverse a
+     tiempo. */
+  function commitWork() {
+    var parked = parkWork();
+    saveTimer();
+    try { store.flush(); } catch (e) { /* sin storage */ }
+    return parked;
+  }
+
+  /* La pestaña oculta congela el intervalo: guardamos al instante. El
+     pomodoro sigue corriendo en tiempo real (mismo criterio que al
+     recargar): al volver, si debería haber terminado se cierra la ronda;
+     si no, se reanuda. */
+  function onVisibility() {
+    if (document.visibilityState === 'hidden') {
+      if (timer.running) { commitWork(); timer.pausedByVisibility = true; }
+      refresh();
+      updateChip();
+    } else if (timer.pausedByVisibility) {
+      timer.pausedByVisibility = false;
+      if (timer.endAt && Date.now() >= timer.endAt) {
+        timer.remaining = 0;
+        finish(timer.mode !== 'work');
+        return;
+      }
+      if (!timer.running && timer.endAt && timer.remaining > 0) {
+        timer.running = true;
+        timer.remaining = Math.max(1, Math.round((timer.endAt - Date.now()) / 1000));
+        timer.tick = setInterval(onTick, TICK_MS);
+        refresh();
+        updateChip();
+        saveTimer();
+      }
+    }
+  }
+
+  /* Antes de cerrar o recargar: consolidar y escribir en el acto. */
+  function flushOnExit() {
+    commitWork();
+  }
+
+  function setMode(mode, autostart) {
+    if (mode === timer.mode) {
+      /* Clic en el modo actual: no reiniciamos la ronda, solo paramos el
+         reloj y guardamos lo llevado si estaba en marcha. */
+      if (commitWork()) { refresh(); updateChip(); }
+      return;
+    }
+    parkWork();
     timer.mode = mode;
     timer.total = secondsFor(mode);
     timer.remaining = timer.total;
@@ -75,7 +135,7 @@
     if (timer.running) return;
     timer.running = true;
     timer.endAt = Date.now() + timer.remaining * 1000;
-    timer.tick = setInterval(onTick, 250);
+    timer.tick = setInterval(onTick, TICK_MS);
     refresh();
     updateChip();
     saveTimer();
@@ -97,7 +157,7 @@
   }
 
   function reset() {
-    stop();
+    parkWork();
     timer.remaining = timer.total;
     refresh();
     updateChip();
@@ -111,20 +171,26 @@
     updateChip();
   }
 
-  function finish() {
+  /* Se terminó el pomodoro (o el descanso). Con `skipSession` solo se
+     cierra el temporizador: es el caso del descanso terminado mientras la
+     app estaba cerrada, sin estudio que registrar. */
+  function finish(skipSession) {
     var endedAt = timer.endAt || Date.now();
     stop();
-    beep();
+    if (!skipSession) beep();
     if (timer.mode === 'work') {
       var p = settings();
-      var result = store.addSession({
-        date: U.toISO(new Date(endedAt)),
-        minutes: p.work,
-        subjectId: timer.subjectId,
-        taskId: timer.taskId,
-        mode: 'pomodoro',
-        notes: timer.notes
-      });
+      timer.lastFinishedEndAt = endedAt;
+      if (!skipSession) {
+        var result = store.addSession({
+          date: U.toISO(new Date(endedAt)),
+          minutes: p.work,
+          subjectId: timer.subjectId,
+          taskId: timer.taskId,
+          mode: 'pomodoro',
+          notes: timer.notes
+        });
+      }
       timer.cycle += 1;
       var isLong = timer.cycle % (p.cycle || 4) === 0;
       var next = isLong ? 'long' : 'short';
@@ -132,23 +198,25 @@
       timer.total = secondsFor(next);
       timer.remaining = timer.total;
 
-      var info = result.streak;
-      ui.toast('¡Sesión completada! +' + result.xp + ' XP · racha de ' + info.current + ' días', 'success', 4200);
-      notifyUser('Sesión de estudio completada', 'Has estudiado ' + p.work + ' minutos. Racha: ' + info.current + ' días.');
-      checkMilestones(info);
+      if (!skipSession) {
+        var info = result.streak;
+        ui.toast('¡Sesión completada! +' + result.xp + ' XP · racha de ' + info.current + ' días', 'success', 4200);
+        notifyUser('Sesión de estudio completada', 'Has estudiado ' + p.work + ' minutos. Racha: ' + info.current + ' días.');
+        checkMilestones(info);
 
-      if (timer.taskId) {
-        var task = store.find('tasks', timer.taskId);
-        if (task) {
-          store.updateRow('tasks', task.id, { done: true, completedAt: U.today() });
-          ui.toast('Tarea marcada como completada ✓', 'success');
+        if (timer.taskId) {
+          var task = store.find('tasks', timer.taskId);
+          if (task) {
+            store.updateRow('tasks', task.id, { done: true, completedAt: U.today() });
+            ui.toast('Tarea marcada como completada ✓', 'success');
+          }
         }
       }
     } else {
       timer.mode = 'work';
       timer.total = secondsFor('work');
       timer.remaining = timer.total;
-      ui.toast('¡Descanso terminado! Vuelve al estudio.', 'info');
+      if (!skipSession) ui.toast('¡Descanso terminado! Vuelve al estudio.', 'info');
     }
     refresh();
     updateChip();
@@ -416,16 +484,16 @@
     timer.lastFinishedEndAt = saved.lastFinishedEndAt || null;
 
     if (saved.running && saved.endAt) {
+      timer.endAt = saved.endAt;
       var left = Math.round((saved.endAt - Date.now()) / 1000);
       if (left > 0) {
         timer.remaining = left;
-        start();                       // reanuda y recalcula endAt
+        start();                       // reanuda con el tiempo real restante
         return true;
       }
-      timer.endAt = saved.endAt;
       if (saved.endAt !== saved.lastFinishedEndAt) {
         timer.remaining = 0;
-        finish();                      // terminó mientras la app estaba cerrada
+        finish(timer.mode !== 'work');  // terminó cerrado: cierra la ronda sin duplicar
         return true;
       }
       timer.remaining = timer.total;
@@ -438,6 +506,8 @@
   }
 
   function init() {
+    if (init.done) return;
+    init.done = true;
     if (!restoreTimer()) {
       timer.subjectId = store.get().subjects.length ? store.get().subjects[0].id : null;
       timer.total = secondsFor('work');
@@ -446,6 +516,9 @@
     store.subscribe(function () {
       if (Studia.router.current() === 'study') refresh();
     });
+    document.addEventListener('visibilitychange', onVisibility);
+    global.addEventListener('pagehide', flushOnExit);
+    global.addEventListener('beforeunload', flushOnExit);
   }
 
   Studia.modules = Studia.modules || {};
