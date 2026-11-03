@@ -130,7 +130,7 @@
           if (e.key === 'Enter') {
             var v = input.value.trim();
             if (!v) return;
-            var list = store.find('forum', p.id).replies || [];
+            var list = (store.find('forum', p.id).replies || []).slice();
             list.push({ author: store.get().profile.name, text: v });
             store.updateRow('forum', p.id, { replies: list });
           }
@@ -180,7 +180,7 @@
             likes: 0, createdAt: new Date().toISOString(), replies: []
           });
           ui.toast('Apunte compartido en el foro', 'success');
-          document.querySelectorAll('.modal-backdrop').forEach(function (b) { b.remove(); });
+          ui.closeAllModals();
         }
       }, [
         U.h('span.quiz-option__key', U.icon('file')),
