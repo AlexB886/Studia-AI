@@ -23,8 +23,9 @@
 
 ## Resultados de la revisión · 4 nov 2026
 
-Rama `joan` actualizada con `main` (0.4.0, rediseño de la interfaz). Sin cambios
-de código: todo lo revisado ya funcionaba.
+Rama `joan` actualizada con `main` (0.4.0, rediseño de la interfaz). La revisión
+no encontró fallos en pomodoro ni en el panel; sí dos mejoras de consistencia en
+Progreso, ya aplicadas en `progress.js`.
 
 **Comprobaciones automáticas**
 - `node tools/check.js`: verde.
@@ -51,8 +52,12 @@ de código: todo lo revisado ya funcionaba.
 - Con 120 sesiones repartidas en 88 días: pinta línea, 30 puntos, 5 barras por
   asignatura y el mapa de calor completo (16 × 7 = 112 celdas), sin errores.
 - Los ids de degradado de los SVG son únicos al renderizar dos gráficos.
-- Sesiones sin asignatura no entran en "Reparto por asignatura" (decisión
-  actual, no es un fallo de render).
+- **Arreglado:** las sesiones sin asignatura ya entran en "Reparto por
+  asignatura" con una barra "Sin asignatura". Antes desaparecían y las barras no
+  sumaban el total del rango.
+- **Arreglado:** el mapa de calor se calcula desde las sesiones (no solo desde
+  `streak.history`) y la última columna es la semana actual. Antes podía acabar
+  hasta 6 días antes de hoy y no pintar las sesiones de esta semana.
 
 **Panel**
 - Racha, nivel y XP coinciden con el `store` (nivel 41 y mejor racha 88 en los
