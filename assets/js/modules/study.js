@@ -25,6 +25,8 @@
   };
 
   var TICK_MS = 250;
+  var wakeLock = null;
+  var wakeLockRequest = 0;
 
   var MODES = {
     work: { label: 'Enfoque', color: 'var(--brand-500)' },
@@ -53,6 +55,33 @@
 
   /* ---------------- Timer ---------------- */
   function settings() { return store.get().settings.pomodoro; }
+
+  /* Evita que la pantalla se apague mientras corre el pomodoro. Si el
+     navegador no lo soporta (o la pestaña está oculta), se ignora. */
+  function requestWakeLock() {
+    if (wakeLock || !timer.running || !global.navigator || !navigator.wakeLock) return;
+    if (document.visibilityState !== 'visible') return;
+    var requestId = ++wakeLockRequest;
+    try {
+      navigator.wakeLock.request('screen').then(function (lock) {
+        if (requestId !== wakeLockRequest || !timer.running) {
+          try { lock.release(); } catch (e) { /* ya liberado */ }
+          return;
+        }
+        wakeLock = lock;
+        lock.addEventListener('release', function () {
+          if (wakeLock === lock) wakeLock = null;
+        });
+      }).catch(function () { /* sin permiso o no soportado */ });
+    } catch (e) { /* API no disponible */ }
+  }
+
+  function releaseWakeLock() {
+    wakeLockRequest++;
+    if (!wakeLock) return;
+    try { wakeLock.release(); } catch (e) { /* ya liberado */ }
+    wakeLock = null;
+  }
 
   /* Guarda el estado del pomodoro para que sobreviva a recargas. No se
      llama en cada tick: con `running` + `endAt` basta para recalcular. */
@@ -121,6 +150,7 @@
         timer.running = true;
         timer.remaining = Math.max(1, Math.round((timer.endAt - Date.now()) / 1000));
         timer.tick = setInterval(onTick, TICK_MS);
+        requestWakeLock();
         refresh();
         updateChip();
         saveTimer();
@@ -155,6 +185,7 @@
     timer.running = true;
     timer.endAt = Date.now() + timer.remaining * 1000;
     timer.tick = setInterval(onTick, TICK_MS);
+    requestWakeLock();
     refresh();
     updateChip();
     saveTimer();
@@ -173,6 +204,7 @@
     timer.running = false;
     if (timer.tick) clearInterval(timer.tick);
     timer.tick = null;
+    releaseWakeLock();
   }
 
   function reset() {
@@ -280,6 +312,53 @@
     } catch (e) { /* sin permisos de notificación */ }
   }
 
+  function notificationState() {
+    if (!global.Notification) return 'unsupported';
+    return Notification.permission || 'default';
+  }
+
+  function askNotifications() {
+    var state = notificationState();
+    if (state === 'unsupported') {
+      ui.toast('Este navegador no admite avisos de escritorio.', 'warn');
+      return;
+    }
+    if (state === 'granted') {
+      ui.toast('Los avisos ya están activados.', 'success');
+      return;
+    }
+    if (state === 'denied') {
+      ui.toast('Los avisos están bloqueados. Actívalos en los permisos del navegador para este sitio.', 'warn', 6000);
+      return;
+    }
+    try {
+      var result = Notification.requestPermission(function () { refresh(); });
+      if (result && typeof result.then === 'function') result.then(function () { refresh(); });
+    } catch (e) {
+      ui.toast('No se pudieron activar los avisos.', 'warn');
+    }
+  }
+
+  function notificationRow() {
+    var state = notificationState();
+    var labels = {
+      granted: ['Avisos activados', 'Te avisaremos al terminar cada pomodoro.'],
+      denied: ['Avisos bloqueados', 'El navegador los tiene bloqueados para este sitio.'],
+      unsupported: ['Avisos no disponibles', 'Este navegador no admite notificaciones.'],
+      default: ['Avisos al terminar', 'Actívalos para enterarte aunque estés en otra pestaña.']
+    };
+    var info = labels[state] || labels.default;
+    var button = U.h('button.btn.btn--sm' + (state === 'granted' ? '.btn--soft' : '.btn--ghost'), {
+      type: 'button',
+      disabled: state === 'granted' || state === 'unsupported',
+      onclick: askNotifications
+    }, state === 'granted' ? 'Activados' : 'Activar');
+    return U.h('div.row.row--between.gap-2.mt-2', [
+      U.h('div', [U.h('div.small.strong', info[0]), U.h('div.tiny.soft', info[1])]),
+      button
+    ]);
+  }
+
   /* ---------------- Chip del topbar ---------------- */
   function updateChip() {
     var chip = document.getElementById('timerChip');
@@ -349,7 +428,7 @@
     })));
 
     var openTasks = store.openTasks();
-    var taskSelect = U.h('select.select.select--sm', { onchange: function () { timer.taskId = taskSelect.value || null; } }, [
+    var taskSelect = U.h('select.select.select--sm', { onchange: function () { timer.taskId = taskSelect.value || null; saveTimer(); } }, [
       U.h('option', { value: '' }, 'Sin tarea asociada')
     ].concat(openTasks.map(function (t) {
       var o = U.h('option', { value: t.id }, t.title);
@@ -434,7 +513,8 @@
         num('Descanso corto (min)', 'short', 1, 30),
         num('Descanso largo (min)', 'long', 5, 60),
         num('Ciclos antes del descanso largo', 'cycle', 2, 8)
-      ])
+      ]),
+      notificationRow()
     ]);
   }
 
