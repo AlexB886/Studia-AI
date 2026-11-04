@@ -32,6 +32,25 @@
     long: { label: 'Descanso largo', color: 'var(--sky-500)' }
   };
 
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+
+  /* `U.h` crea nodos HTML; los hijos de un <svg> necesitan el namespace SVG
+     o el navegador no pinta el anillo. Helper local para no tocar core. */
+  function svgEl(tag, attrs, children) {
+    var node = document.createElementNS(SVG_NS, tag);
+    Object.keys(attrs || {}).forEach(function (key) {
+      var val = attrs[key];
+      if (val === null || val === undefined || val === false) return;
+      node.setAttribute(key, val);
+    });
+    var list = children === null || children === undefined ? [] : (Array.isArray(children) ? children : [children]);
+    list.forEach(function (c) {
+      if (c instanceof Node) node.appendChild(c);
+      else node.appendChild(document.createTextNode(String(c)));
+    });
+    return node;
+  }
+
   /* ---------------- Timer ---------------- */
   function settings() { return store.get().settings.pomodoro; }
 
@@ -301,15 +320,15 @@
     var R = 118, C = 2 * Math.PI * R;
 
     var ring = U.h('div.timer__ring', [
-      U.h('svg', { viewBox: '0 0 268 268', width: '268', height: '268' }, [
-        U.h('defs', [
-          U.h('linearGradient', { id: 'timerGrad', x1: '0', y1: '0', x2: '1', y2: '1' }, [
-            U.h('stop', { offset: '0%', 'stop-color': 'var(--brand-500)' }),
-            U.h('stop', { offset: '100%', 'stop-color': 'var(--violet-500)' })
+      svgEl('svg', { viewBox: '0 0 268 268', width: '268', height: '268' }, [
+        svgEl('defs', null, [
+          svgEl('linearGradient', { id: 'timerGrad', x1: '0', y1: '0', x2: '1', y2: '1' }, [
+            svgEl('stop', { offset: '0%', 'stop-color': 'var(--brand-500)' }),
+            svgEl('stop', { offset: '100%', 'stop-color': 'var(--violet-500)' })
           ])
         ]),
-        U.h('circle', { class: 'timer__track', cx: '134', cy: '134', r: R, 'stroke-width': '14' }),
-        U.h('circle', {
+        svgEl('circle', { class: 'timer__track', cx: '134', cy: '134', r: R, 'stroke-width': '14' }),
+        svgEl('circle', {
           class: 'timer__prog', cx: '134', cy: '134', r: R, 'stroke-width': '14',
           'stroke-dasharray': C, 'stroke-dashoffset': C * (1 - pct)
         })
