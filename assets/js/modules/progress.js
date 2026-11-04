@@ -57,6 +57,30 @@
   }
 
   /* ---------------- Gráficos ---------------- */
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+
+  /* `U.h` crea nodos HTML; los hijos de un <svg> necesitan el namespace
+     SVG o el navegador pinta solo el texto y se salta líneas y barras.
+     Helper local para no tocar core/utils.js. */
+  function svgEl(tag, attrs, children) {
+    var node = document.createElementNS(SVG_NS, tag);
+    Object.keys(attrs || {}).forEach(function (key) {
+      var val = attrs[key];
+      if (val === null || val === undefined || val === false) return;
+      if (key === 'style' && typeof val === 'object') {
+        Object.keys(val).forEach(function (k) { node.style[k] = val[k]; });
+      } else {
+        node.setAttribute(key, val);
+      }
+    });
+    var list = children === null || children === undefined ? [] : (Array.isArray(children) ? children : [children]);
+    list.forEach(function (c) {
+      if (c instanceof Node) node.appendChild(c);
+      else node.appendChild(document.createTextNode(String(c)));
+    });
+    return node;
+  }
+
   function lineChart(data, range) {
     var W = 760, H = 240, padL = 42, padR = 12, padT = 16, padB = 28;
     var max = Math.max(60, Math.max.apply(null, data.map(function (d) { return d.minutes; })));
@@ -67,23 +91,23 @@
     function x(i) { return padL + i * step; }
     function y(v) { return padT + innerH - (v / max) * innerH; }
 
-    var svg = U.h('svg.chart', { viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'none' });
+    var svg = svgEl('svg', { class: 'chart', viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'none' });
 
     /* el id del degradado va numerado: si no, dos SVG en la página (o un
        re-render con el anterior aún montado) pelean por el mismo 'areaGrad' */
     var gradId = 'areaGrad-' + (++chartSeq);
-    svg.appendChild(U.h('defs', [
-      U.h('linearGradient', { id: gradId, x1: '0', y1: '0', x2: '0', y2: '1' }, [
-        U.h('stop', { offset: '0%', 'stop-color': 'var(--brand-500)', 'stop-opacity': '.28' }),
-        U.h('stop', { offset: '100%', 'stop-color': 'var(--brand-500)', 'stop-opacity': '0' })
+    svg.appendChild(svgEl('defs', null, [
+      svgEl('linearGradient', { id: gradId, x1: '0', y1: '0', x2: '0', y2: '1' }, [
+        svgEl('stop', { offset: '0%', 'stop-color': 'var(--brand-500)', 'stop-opacity': '.28' }),
+        svgEl('stop', { offset: '100%', 'stop-color': 'var(--brand-500)', 'stop-opacity': '0' })
       ])
     ]));
 
     /* rejilla y eje Y */
     for (var g = 0; g <= 4; g++) {
       var v = (max / 4) * g;
-      svg.appendChild(U.h('line', { class: 'chart__grid', x1: padL, x2: W - padR, y1: y(v), y2: y(v) }));
-      svg.appendChild(U.h('text', { class: 'chart__label', x: padL - 8, y: y(v) + 4, 'text-anchor': 'end' }, String(Math.round(v))));
+      svg.appendChild(svgEl('line', { class: 'chart__grid', x1: padL, x2: W - padR, y1: y(v), y2: y(v) }));
+      svg.appendChild(svgEl('text', { class: 'chart__label', x: padL - 8, y: y(v) + 4, 'text-anchor': 'end' }, String(Math.round(v))));
     }
 
     var pts = data.map(function (d, i) { return [x(i), y(d.minutes)]; });
@@ -95,20 +119,18 @@
     var empty = !U.sum(data, function (d) { return d.minutes; });
 
     if (!empty) {
-      svg.appendChild(U.h('path', { class: 'chart__area', d: areaPath, style: { fill: 'url(#' + gradId + ')' } }));
-      svg.appendChild(U.h('path', { class: 'chart__line', d: linePath }));
+      svg.appendChild(svgEl('path', { class: 'chart__area', d: areaPath, style: { fill: 'url(#' + gradId + ')' } }));
+      svg.appendChild(svgEl('path', { class: 'chart__line', d: linePath }));
     }
 
     pts.forEach(function (p, i) {
       var d = data[i];
-      svg.appendChild(U.h('circle', { class: 'chart__dot', cx: p[0], cy: p[1], r: 3.4, opacity: d.minutes ? 1 : 0 }));
-      var title = U.h('title');
-      title.textContent = U.fmtDate(d.iso, { short: true, day: true }) + ': ' + d.minutes + ' min';
-      svg.appendChild(title);
+      svg.appendChild(svgEl('circle', { class: 'chart__dot', cx: p[0], cy: p[1], r: 3.4, opacity: d.minutes ? 1 : 0 }));
+      svg.appendChild(svgEl('title', null, U.fmtDate(d.iso, { short: true, day: true }) + ': ' + d.minutes + ' min'));
     });
 
     if (empty) {
-      svg.appendChild(U.h('text', {
+      svg.appendChild(svgEl('text', {
         class: 'chart__label', x: W / 2, y: padT + innerH / 2,
         'text-anchor': 'middle', style: { 'font-size': '15px' }
       }, 'Aún no hay sesiones en este periodo'));
@@ -120,7 +142,7 @@
       : Math.ceil(data.length / 10);
     data.forEach(function (d, i) {
       if (i % every !== 0 && i !== data.length - 1) return;
-      svg.appendChild(U.h('text', { class: 'chart__label', x: x(i), y: H - 8, 'text-anchor': 'middle' }, U.fmtDate(d.iso, { short: true, day: true })));
+      svg.appendChild(svgEl('text', { class: 'chart__label', x: x(i), y: H - 8, 'text-anchor': 'middle' }, U.fmtDate(d.iso, { short: true, day: true })));
     });
 
     return svg;
@@ -133,26 +155,24 @@
     var bw = Math.min(70, (innerW / Math.max(1, items.length)) * 0.55);
     var gap = (innerW - bw * items.length) / Math.max(1, items.length);
 
-    var svg = U.h('svg.chart.chart--bars', { viewBox: '0 0 ' + W + ' ' + H });
+    var svg = svgEl('svg', { class: 'chart chart--bars', viewBox: '0 0 ' + W + ' ' + H });
     for (var g = 0; g <= 4; g++) {
       var v = (max / 4) * g;
       var yy = padT + innerH - (v / max) * innerH;
-      svg.appendChild(U.h('line', { class: 'chart__grid', x1: padL, x2: W - padR, y1: yy, y2: yy }));
-      svg.appendChild(U.h('text', { class: 'chart__label', x: padL - 8, y: yy + 4, 'text-anchor': 'end' }, String(Math.round(v))));
+      svg.appendChild(svgEl('line', { class: 'chart__grid', x1: padL, x2: W - padR, y1: yy, y2: yy }));
+      svg.appendChild(svgEl('text', { class: 'chart__label', x: padL - 8, y: yy + 4, 'text-anchor': 'end' }, String(Math.round(v))));
     }
 
     items.forEach(function (it, i) {
       var x = padL + gap * (i + 1) + bw * i;
       var h = (it.minutes / max) * innerH;
       var y = padT + innerH - h;
-      var rect = U.h('rect', { class: 'chart__bar', x: x, y: y, width: bw, height: Math.max(3, h), fill: store.subjectColor(it.subjectId) });
-      var t = U.h('title');
-      t.textContent = store.subjectName(it.subjectId) + ': ' + U.fmtMinutes(it.minutes);
-      rect.appendChild(t);
+      var rect = svgEl('rect', { class: 'chart__bar', x: x, y: y, width: bw, height: Math.max(3, h), fill: store.subjectColor(it.subjectId) });
+      rect.appendChild(svgEl('title', null, store.subjectName(it.subjectId) + ': ' + U.fmtMinutes(it.minutes)));
       svg.appendChild(rect);
-      svg.appendChild(U.h('text', { class: 'chart__label', x: x + bw / 2, y: y - 6, 'text-anchor': 'middle' }, U.fmtMinutes(it.minutes)));
+      svg.appendChild(svgEl('text', { class: 'chart__label', x: x + bw / 2, y: y - 6, 'text-anchor': 'middle' }, U.fmtMinutes(it.minutes)));
       var label = store.subjectName(it.subjectId);
-      svg.appendChild(U.h('text', { class: 'chart__label', x: x + bw / 2, y: H - 12, 'text-anchor': 'middle' }, label.length > 14 ? label.slice(0, 13) + '…' : label));
+      svg.appendChild(svgEl('text', { class: 'chart__label', x: x + bw / 2, y: H - 12, 'text-anchor': 'middle' }, label.length > 14 ? label.slice(0, 13) + '…' : label));
     });
 
     return svg;
