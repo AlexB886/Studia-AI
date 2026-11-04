@@ -44,6 +44,9 @@ Progreso, ya aplicadas en `progress.js`.
 - Nota de comportamiento: al recargar/cerrar, `pagehide` deja el pomodoro en
   pausa con el tiempo restante (no sigue contando en segundo plano). Es lo que
   hace hoy el código; si se quiere que siga corriendo, habría que cambiarlo.
+- **Arreglado:** el anillo del temporizador se creaba con `U.h` (nodos HTML) y
+  el navegador no pintaba los círculos. Ahora `study.js` usa el namespace SVG,
+  igual que los gráficos de Progreso.
 
 **Progreso**
 - Con 0 sesiones: el gráfico avisa "Aún no hay sesiones en este periodo", el
