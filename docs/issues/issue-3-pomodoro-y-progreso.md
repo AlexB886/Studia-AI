@@ -52,6 +52,10 @@ Progreso, ya aplicadas en `progress.js`.
 - Con 120 sesiones repartidas en 88 días: pinta línea, 30 puntos, 5 barras por
   asignatura y el mapa de calor completo (16 × 7 = 112 celdas), sin errores.
 - Los ids de degradado de los SVG son únicos al renderizar dos gráficos.
+- **Arreglado:** los gráficos se creaban con `U.h`, que genera nodos HTML; dentro
+  de un `<svg>` el navegador solo pintaba las etiquetas y se saltaba la línea y
+  las barras. Ahora `progress.js` crea los nodos SVG con `createElementNS`: se
+  ven la línea de progresión y las barras por asignatura.
 - **Arreglado:** las sesiones sin asignatura ya entran en "Reparto por
   asignatura" con una barra "Sin asignatura". Antes desaparecían y las barras no
   sumaban el total del rango.
