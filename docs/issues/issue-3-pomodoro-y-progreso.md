@@ -73,3 +73,15 @@ Progreso, ya aplicadas en `progress.js`.
 **Móvil (DevTools/CDP, viewport real)**
 - Estudio y Progresión a **390 px** y **360 px**: sin scroll horizontal de
   página, sin elementos desbordados y sin excepciones en consola.
+
+## Mejoras de Estudio · 4 nov 2026
+
+- La **tarea elegida** se guarda al instante; antes se perdía si recargabas
+  antes de arrancar el pomodoro.
+- **Wake Lock**: mientras corre el pomodoro se pide que la pantalla no se
+  apague. Se libera al pausar, resetear o terminar y se recupera al volver a la
+  pestaña. Si el navegador no lo soporta, se ignora sin errores.
+- **Avisos al terminar**: nuevo bloque en los ajustes para pedir permiso de
+  notificaciones y ver si están activados, bloqueados o no disponibles.
+- Probado con el arnés: la tarea sobrevive a recargar, `start` pide el wake lock
+  y `pause` lo libera; Estudio sigue sin desbordar a 390/360 px.
