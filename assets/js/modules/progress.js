@@ -29,8 +29,10 @@
 
     var bySubject = {};
     inRange.forEach(function (s) {
-      if (!s.subjectId) return;
-      bySubject[s.subjectId] = (bySubject[s.subjectId] || 0) + s.minutes;
+      /* Las sesiones sin asignatura también cuentan: antes desaparecían del
+         reparto y el total no cuadraba con las barras. */
+      var key = s.subjectId || '__none';
+      bySubject[key] = (bySubject[key] || 0) + s.minutes;
     });
 
     return {
@@ -38,8 +40,8 @@
       week: week,
       avg: avg,
       activeDays: days,
-      bySubject: Object.keys(bySubject).map(function (id) {
-        return { subjectId: id, minutes: bySubject[id] };
+      bySubject: Object.keys(bySubject).map(function (key) {
+        return { subjectId: key === '__none' ? null : key, minutes: bySubject[key] };
       }).sort(function (a, b) { return b.minutes - a.minutes; }),
       inRange: inRange
     };
@@ -159,12 +161,20 @@
   function heatmap() {
     var weeks = 16;
     var cells = [];
-    var start = U.startOfWeek(U.addDays(new Date(), -(weeks * 7 - 1)), 1);
-    var history = store.get().streak.history || {};
+    /* La última columna debe ser la semana actual: si se resta
+       semanas*7-1 y luego se redondea al lunes, el mapa acaba hasta 6 días
+       antes de hoy y no pinta las sesiones de esta semana. */
+    var start = U.addDays(U.startOfWeek(new Date(), 1), -(weeks - 1) * 7);
+    /* El mapa se calcula desde las sesiones, igual que la línea y el reparto:
+       así no se desincroniza si se importan datos o se borra una sesión. */
+    var minutesByDay = {};
+    store.get().sessions.forEach(function (s) {
+      minutesByDay[s.date] = (minutesByDay[s.date] || 0) + s.minutes;
+    });
     for (var i = 0; i < weeks * 7; i++) {
       var d = U.addDays(start, i);
       var iso = U.toISO(d);
-      var mins = history[iso] || 0;
+      var mins = minutesByDay[iso] || 0;
       var level = mins === 0 ? 0 : mins < 30 ? 1 : mins < 60 ? 2 : mins < 120 ? 3 : 4;
       cells.push({ iso: iso, level: level, mins: mins, future: d > new Date() });
     }
