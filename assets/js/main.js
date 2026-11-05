@@ -25,17 +25,48 @@
   }
 
   /* ---------------- Barra lateral ---------------- */
+  var sidebarWired = false;
   function wireSidebar() {
+    if (sidebarWired) return;
+    sidebarWired = true;
     var sidebar = document.getElementById('sidebar');
     var scrim = document.getElementById('sidebarScrim');
-    function open() { sidebar.classList.add('is-open'); scrim.classList.add('is-open'); }
-    function close() { sidebar.classList.remove('is-open'); scrim.classList.remove('is-open'); }
+    var app = document.getElementById('app');
+
+    function isMobile() {
+      return global.matchMedia ? global.matchMedia('(max-width: 768px)').matches : global.innerWidth <= 768;
+    }
+    function open() {
+      sidebar.classList.remove('is-open');
+      scrim.classList.remove('is-open');
+      if (isMobile()) {
+        app.classList.remove('sidebar--collapsed');
+        sidebar.classList.add('is-open');
+        scrim.classList.add('is-open');
+      } else {
+        app.classList.remove('sidebar--collapsed');
+      }
+    }
+    function close() {
+      sidebar.classList.remove('is-open');
+      scrim.classList.remove('is-open');
+      if (isMobile()) app.classList.remove('sidebar--collapsed');
+      else app.classList.add('sidebar--collapsed');
+    }
+    function syncViewportMode() {
+      sidebar.classList.remove('is-open');
+      scrim.classList.remove('is-open');
+      if (isMobile()) app.classList.remove('sidebar--collapsed');
+    }
+
     document.getElementById('btnOpenSidebar').addEventListener('click', open);
     document.getElementById('btnCloseSidebar').addEventListener('click', close);
     scrim.addEventListener('click', close);
+    global.addEventListener('resize', syncViewportMode);
     U.$$('.nav__item[data-nav]').forEach(function (a) {
-      a.addEventListener('click', function () { if (global.innerWidth <= 1024) close(); });
+      a.addEventListener('click', function () { if (isMobile()) close(); });
     });
+    syncViewportMode();
   }
 
   /* ---------------- Búsqueda global ---------------- */
@@ -514,7 +545,7 @@
   /* ---------------- Diagnóstico ----------------
      Cualquier error no controlado se guarda aquí para poder copiarlo y
      reportarlo. Es la forma más rápida de saber qué falla en otro equipo. */
-  var APP_VERSION = '0.4.0';
+  var APP_VERSION = '0.4.1';
   var recentErrors = [];
 
   function captureError(kind, message, detail) {
