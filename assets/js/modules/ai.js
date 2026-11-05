@@ -186,7 +186,7 @@
       '· Resúmenes de tus apuntes\n' +
       '· Tu progreso y tu racha\n' +
       '· El test inicial de conocimientos\n\n' +
-      '¿Cuál prefieres? (En esta versión las respuestas las genero en local; conectaré la API real de Luna en la rama feature/ai-api.)';
+      '¿Cuál prefieres?';
   }
 
   function topSubject() {
@@ -683,7 +683,7 @@
           U.h('button.btn.btn--ghost.btn--sm.btn--block.mt-2', { onclick: openSettings }, [U.icon('settings'), 'Configurar'])
         ]),
         U.h('div.card', { style: { background: 'var(--surface-2)' } }, [
-          U.h('p.tiny.soft', 'Prototipo: las respuestas se generan en el navegador a partir de tus datos. La conexión con la API real de IA (rama feature/ai-api) sustituirá este motor sin tocar la interfaz.')
+          U.h('p.tiny.soft', 'Luna responde con IA real (Groq) si has puesto tu clave en Ajustes; si no, lo hace en el navegador a partir de tus datos, sin conexión.')
         ])
       ])
     ]));
