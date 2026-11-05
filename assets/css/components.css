@@ -248,6 +248,8 @@
 }
 .empty h4 { color: var(--text); }
 .empty p { font-size: .84rem; max-width: 42ch; }
+.empty--sm { padding: 22px 14px; }
+.empty--sm .empty__icon { width: 40px; height: 40px; border-radius: 12px; }
 
 /* ---------- Modal ---------- */
 .modal-backdrop {

@@ -1,8 +1,9 @@
-# Studia-IA — Ficha del proyecto v0
+# Studia-IA — Ficha del proyecto v1
 
 **Equipo:** Héctor (coordinación y Luna IA), Alex (tareas, asignaturas, comunidad y premium), Joan (estudio y progreso), Carles (calendario y horarios).
+Roles y reglas de trabajo: [`docs/equipo.md`](docs/equipo.md) · Por qué esta idea y con qué la construimos: [`docs/decisiones.md`](docs/decisiones.md) · Entrevistas de validación: [`docs/entrevistas/`](docs/entrevistas/)
 
-**Fecha:** 27/10/2026
+**Fecha:** 03/11/2026 (v1; ficha inicial v0: 27/10/2026)
 
 ## 1. El problema (en una frase)
 

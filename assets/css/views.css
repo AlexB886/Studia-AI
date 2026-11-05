@@ -198,8 +198,9 @@
 .pomo-session__dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 
 /* ================= Progresión ================= */
-.chart { width: 100%; overflow: visible; }
-.chart__area { fill: url(#areaGrad); }
+.chart { width: 100%; height: 260px; overflow: visible; }
+.chart--bars { height: 230px; }
+.chart__area { fill: none; }  /* el relleno real es el degradado, por svg y con id único (progress.js) */
 .chart__line { fill: none; stroke: var(--brand-500); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 .chart__line--mint { stroke: var(--mint-500); }
 .chart__dot { fill: var(--surface); stroke: var(--brand-500); stroke-width: 2.2; }
@@ -267,6 +268,29 @@
 .msg__typing i:nth-child(2) { animation-delay: .2s; }
 .msg__typing i:nth-child(3) { animation-delay: .4s; }
 @keyframes blink { 0%, 60%, 100% { opacity: .25; } 30% { opacity: 1; } }
+
+/* Aviso de fallo de respuesta + indicador de "escribiendo" en la barra */
+.ai-retry {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 12px 10px; padding: 9px 12px;
+  border-radius: var(--radius);
+  background: var(--rose-50, rgba(244, 63, 94, .1));
+  border: 1px solid var(--rose-200, rgba(244, 63, 94, .35));
+  font-size: .8rem;
+}
+.ai-retry[hidden] { display: none; }
+.ai-retry .icon { width: 16px; height: 16px; color: var(--rose-600); flex: none; }
+.ai-retry span { flex: 1; min-width: 0; }
+
+.ai-typing-bar {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin: 0 12px 8px;
+  font-size: .74rem; color: var(--text-soft);
+}
+.ai-typing-bar[hidden] { display: none; }
+.ai-typing-bar i { width: 5px; height: 5px; border-radius: 50%; background: var(--text-soft); animation: blink 1.2s infinite; }
+.ai-typing-bar i:nth-child(3) { animation-delay: .2s; }
+.ai-typing-bar i:nth-child(4) { animation-delay: .4s; }
 
 .composer {
   display: flex; align-items: flex-end; gap: 8px;
@@ -468,6 +492,15 @@
 }
 
 /* ================= Dashboard ================= */
+.hero__streak {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 10px; padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .16);
+  font-size: .76rem; font-weight: 600;
+}
+.hero__streak .icon { width: 14px; height: 14px; }
+
 .hero {
   position: relative;
   overflow: hidden;
@@ -548,4 +581,8 @@
   .section-head { align-items: flex-start; }
   /* Tablas y rejillas anchas: scroll dentro de su tarjeta, nunca de la página */
   .table-scroll, .heat, .tt { -webkit-overflow-scrolling: touch; }
+  /* En pantallas estrechas los gráficos apilan texto: menos alto y menos ejes X */
+  .chart { height: 210px; }
+  .chart--bars { height: 190px; }
+  .chart__label { font-size: 8px; }
 }

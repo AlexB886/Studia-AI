@@ -14,14 +14,19 @@
     remaining: 25 * 60,
     total: 25 * 60,
     running: false,
-    endAt: null,
+    endAt: null,             // epoch ms en que debe terminar el tramo actual
     cycle: 0,
     subjectId: null,
     taskId: null,
     notes: '',
-    tick: null,
-    lastFinishedEndAt: null
+    tick: null,              // interval de refresco visual (no cuenta nada)
+    lastFinishedEndAt: null,
+    pausedByVisibility: false    // el pomodoro se congeló al ocultar la pestaña
   };
+
+  var TICK_MS = 250;
+  var wakeLock = null;
+  var wakeLockRequest = 0;
 
   var MODES = {
     work: { label: 'Enfoque', color: 'var(--brand-500)' },
@@ -29,8 +34,54 @@
     long: { label: 'Descanso largo', color: 'var(--sky-500)' }
   };
 
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+
+  /* `U.h` crea nodos HTML; los hijos de un <svg> necesitan el namespace SVG
+     o el navegador no pinta el anillo. Helper local para no tocar core. */
+  function svgEl(tag, attrs, children) {
+    var node = document.createElementNS(SVG_NS, tag);
+    Object.keys(attrs || {}).forEach(function (key) {
+      var val = attrs[key];
+      if (val === null || val === undefined || val === false) return;
+      node.setAttribute(key, val);
+    });
+    var list = children === null || children === undefined ? [] : (Array.isArray(children) ? children : [children]);
+    list.forEach(function (c) {
+      if (c instanceof Node) node.appendChild(c);
+      else node.appendChild(document.createTextNode(String(c)));
+    });
+    return node;
+  }
+
   /* ---------------- Timer ---------------- */
   function settings() { return store.get().settings.pomodoro; }
+
+  /* Evita que la pantalla se apague mientras corre el pomodoro. Si el
+     navegador no lo soporta (o la pestaña está oculta), se ignora. */
+  function requestWakeLock() {
+    if (wakeLock || !timer.running || !global.navigator || !navigator.wakeLock) return;
+    if (document.visibilityState !== 'visible') return;
+    var requestId = ++wakeLockRequest;
+    try {
+      navigator.wakeLock.request('screen').then(function (lock) {
+        if (requestId !== wakeLockRequest || !timer.running) {
+          try { lock.release(); } catch (e) { /* ya liberado */ }
+          return;
+        }
+        wakeLock = lock;
+        lock.addEventListener('release', function () {
+          if (wakeLock === lock) wakeLock = null;
+        });
+      }).catch(function () { /* sin permiso o no soportado */ });
+    } catch (e) { /* API no disponible */ }
+  }
+
+  function releaseWakeLock() {
+    wakeLockRequest++;
+    if (!wakeLock) return;
+    try { wakeLock.release(); } catch (e) { /* ya liberado */ }
+    wakeLock = null;
+  }
 
   /* Guarda el estado del pomodoro para que sobreviva a recargas. No se
      llama en cada tick: con `running` + `endAt` basta para recalcular. */
@@ -60,8 +111,66 @@
     return p.long * 60;
   }
 
-  function setMode(mode, autostart) {
+  /* Devuelve true si quedaba una ronda a medias que conservar en pausa. */
+  function parkWork() {
+    if (!timer.running) return false;
+    timer.remaining = Math.max(0, Math.round((timer.endAt - Date.now()) / 1000));
     stop();
+    return timer.mode === 'work' && timer.remaining > 0 && timer.remaining < timer.total;
+  }
+
+  /* Cierra el reloj y escribe en el acto. `store.flush()` escribe en
+     localStorage sin pasar por el debounce, así que vale dentro de
+     `pagehide`/`beforeunload`, donde una promesa puede no resolverse a
+     tiempo. */
+  function commitWork() {
+    var parked = parkWork();
+    saveTimer();
+    try { store.flush(); } catch (e) { /* sin storage */ }
+    return parked;
+  }
+
+  /* La pestaña oculta congela el intervalo: guardamos al instante. El
+     pomodoro sigue corriendo en tiempo real (mismo criterio que al
+     recargar): al volver, si debería haber terminado se cierra la ronda;
+     si no, se reanuda. */
+  function onVisibility() {
+    if (document.visibilityState === 'hidden') {
+      if (timer.running) { commitWork(); timer.pausedByVisibility = true; }
+      refresh();
+      updateChip();
+    } else if (timer.pausedByVisibility) {
+      timer.pausedByVisibility = false;
+      if (timer.endAt && Date.now() >= timer.endAt) {
+        timer.remaining = 0;
+        finish(timer.mode !== 'work');
+        return;
+      }
+      if (!timer.running && timer.endAt && timer.remaining > 0) {
+        timer.running = true;
+        timer.remaining = Math.max(1, Math.round((timer.endAt - Date.now()) / 1000));
+        timer.tick = setInterval(onTick, TICK_MS);
+        requestWakeLock();
+        refresh();
+        updateChip();
+        saveTimer();
+      }
+    }
+  }
+
+  /* Antes de cerrar o recargar: consolidar y escribir en el acto. */
+  function flushOnExit() {
+    commitWork();
+  }
+
+  function setMode(mode, autostart) {
+    if (mode === timer.mode) {
+      /* Clic en el modo actual: no reiniciamos la ronda, solo paramos el
+         reloj y guardamos lo llevado si estaba en marcha. */
+      if (commitWork()) { refresh(); updateChip(); }
+      return;
+    }
+    parkWork();
     timer.mode = mode;
     timer.total = secondsFor(mode);
     timer.remaining = timer.total;
@@ -75,7 +184,8 @@
     if (timer.running) return;
     timer.running = true;
     timer.endAt = Date.now() + timer.remaining * 1000;
-    timer.tick = setInterval(onTick, 250);
+    timer.tick = setInterval(onTick, TICK_MS);
+    requestWakeLock();
     refresh();
     updateChip();
     saveTimer();
@@ -94,10 +204,11 @@
     timer.running = false;
     if (timer.tick) clearInterval(timer.tick);
     timer.tick = null;
+    releaseWakeLock();
   }
 
   function reset() {
-    stop();
+    parkWork();
     timer.remaining = timer.total;
     refresh();
     updateChip();
@@ -111,20 +222,26 @@
     updateChip();
   }
 
-  function finish() {
+  /* Se terminó el pomodoro (o el descanso). Con `skipSession` solo se
+     cierra el temporizador: es el caso del descanso terminado mientras la
+     app estaba cerrada, sin estudio que registrar. */
+  function finish(skipSession) {
     var endedAt = timer.endAt || Date.now();
     stop();
-    beep();
+    if (!skipSession) beep();
     if (timer.mode === 'work') {
       var p = settings();
-      var result = store.addSession({
-        date: U.toISO(new Date(endedAt)),
-        minutes: p.work,
-        subjectId: timer.subjectId,
-        taskId: timer.taskId,
-        mode: 'pomodoro',
-        notes: timer.notes
-      });
+      timer.lastFinishedEndAt = endedAt;
+      if (!skipSession) {
+        var result = store.addSession({
+          date: U.toISO(new Date(endedAt)),
+          minutes: p.work,
+          subjectId: timer.subjectId,
+          taskId: timer.taskId,
+          mode: 'pomodoro',
+          notes: timer.notes
+        });
+      }
       timer.cycle += 1;
       var isLong = timer.cycle % (p.cycle || 4) === 0;
       var next = isLong ? 'long' : 'short';
@@ -132,23 +249,25 @@
       timer.total = secondsFor(next);
       timer.remaining = timer.total;
 
-      var info = result.streak;
-      ui.toast('¡Sesión completada! +' + result.xp + ' XP · racha de ' + info.current + ' días', 'success', 4200);
-      notifyUser('Sesión de estudio completada', 'Has estudiado ' + p.work + ' minutos. Racha: ' + info.current + ' días.');
-      checkMilestones(info);
+      if (!skipSession) {
+        var info = result.streak;
+        ui.toast('¡Sesión completada! +' + result.xp + ' XP · racha de ' + info.current + ' días', 'success', 4200);
+        notifyUser('Sesión de estudio completada', 'Has estudiado ' + p.work + ' minutos. Racha: ' + info.current + ' días.');
+        checkMilestones(info);
 
-      if (timer.taskId) {
-        var task = store.find('tasks', timer.taskId);
-        if (task) {
-          store.updateRow('tasks', task.id, { done: true, completedAt: U.today() });
-          ui.toast('Tarea marcada como completada ✓', 'success');
+        if (timer.taskId) {
+          var task = store.find('tasks', timer.taskId);
+          if (task) {
+            store.updateRow('tasks', task.id, { done: true, completedAt: U.today() });
+            ui.toast('Tarea marcada como completada ✓', 'success');
+          }
         }
       }
     } else {
       timer.mode = 'work';
       timer.total = secondsFor('work');
       timer.remaining = timer.total;
-      ui.toast('¡Descanso terminado! Vuelve al estudio.', 'info');
+      if (!skipSession) ui.toast('¡Descanso terminado! Vuelve al estudio.', 'info');
     }
     refresh();
     updateChip();
@@ -193,6 +312,53 @@
     } catch (e) { /* sin permisos de notificación */ }
   }
 
+  function notificationState() {
+    if (!global.Notification) return 'unsupported';
+    return Notification.permission || 'default';
+  }
+
+  function askNotifications() {
+    var state = notificationState();
+    if (state === 'unsupported') {
+      ui.toast('Este navegador no admite avisos de escritorio.', 'warn');
+      return;
+    }
+    if (state === 'granted') {
+      ui.toast('Los avisos ya están activados.', 'success');
+      return;
+    }
+    if (state === 'denied') {
+      ui.toast('Los avisos están bloqueados. Actívalos en los permisos del navegador para este sitio.', 'warn', 6000);
+      return;
+    }
+    try {
+      var result = Notification.requestPermission(function () { refresh(); });
+      if (result && typeof result.then === 'function') result.then(function () { refresh(); });
+    } catch (e) {
+      ui.toast('No se pudieron activar los avisos.', 'warn');
+    }
+  }
+
+  function notificationRow() {
+    var state = notificationState();
+    var labels = {
+      granted: ['Avisos activados', 'Te avisaremos al terminar cada pomodoro.'],
+      denied: ['Avisos bloqueados', 'El navegador los tiene bloqueados para este sitio.'],
+      unsupported: ['Avisos no disponibles', 'Este navegador no admite notificaciones.'],
+      default: ['Avisos al terminar', 'Actívalos para enterarte aunque estés en otra pestaña.']
+    };
+    var info = labels[state] || labels.default;
+    var button = U.h('button.btn.btn--sm' + (state === 'granted' ? '.btn--soft' : '.btn--ghost'), {
+      type: 'button',
+      disabled: state === 'granted' || state === 'unsupported',
+      onclick: askNotifications
+    }, state === 'granted' ? 'Activados' : 'Activar');
+    return U.h('div.row.row--between.gap-2.mt-2', [
+      U.h('div', [U.h('div.small.strong', info[0]), U.h('div.tiny.soft', info[1])]),
+      button
+    ]);
+  }
+
   /* ---------------- Chip del topbar ---------------- */
   function updateChip() {
     var chip = document.getElementById('timerChip');
@@ -233,15 +399,15 @@
     var R = 118, C = 2 * Math.PI * R;
 
     var ring = U.h('div.timer__ring', [
-      U.h('svg', { viewBox: '0 0 268 268', width: '268', height: '268' }, [
-        U.h('defs', [
-          U.h('linearGradient', { id: 'timerGrad', x1: '0', y1: '0', x2: '1', y2: '1' }, [
-            U.h('stop', { offset: '0%', 'stop-color': 'var(--brand-500)' }),
-            U.h('stop', { offset: '100%', 'stop-color': 'var(--violet-500)' })
+      svgEl('svg', { viewBox: '0 0 268 268', width: '268', height: '268' }, [
+        svgEl('defs', null, [
+          svgEl('linearGradient', { id: 'timerGrad', x1: '0', y1: '0', x2: '1', y2: '1' }, [
+            svgEl('stop', { offset: '0%', 'stop-color': 'var(--brand-500)' }),
+            svgEl('stop', { offset: '100%', 'stop-color': 'var(--violet-500)' })
           ])
         ]),
-        U.h('circle', { class: 'timer__track', cx: '134', cy: '134', r: R, 'stroke-width': '14' }),
-        U.h('circle', {
+        svgEl('circle', { class: 'timer__track', cx: '134', cy: '134', r: R, 'stroke-width': '14' }),
+        svgEl('circle', {
           class: 'timer__prog', cx: '134', cy: '134', r: R, 'stroke-width': '14',
           'stroke-dasharray': C, 'stroke-dashoffset': C * (1 - pct)
         })
@@ -262,7 +428,7 @@
     })));
 
     var openTasks = store.openTasks();
-    var taskSelect = U.h('select.select.select--sm', { onchange: function () { timer.taskId = taskSelect.value || null; } }, [
+    var taskSelect = U.h('select.select.select--sm', { onchange: function () { timer.taskId = taskSelect.value || null; saveTimer(); } }, [
       U.h('option', { value: '' }, 'Sin tarea asociada')
     ].concat(openTasks.map(function (t) {
       var o = U.h('option', { value: t.id }, t.title);
@@ -347,7 +513,8 @@
         num('Descanso corto (min)', 'short', 1, 30),
         num('Descanso largo (min)', 'long', 5, 60),
         num('Ciclos antes del descanso largo', 'cycle', 2, 8)
-      ])
+      ]),
+      notificationRow()
     ]);
   }
 
@@ -416,16 +583,16 @@
     timer.lastFinishedEndAt = saved.lastFinishedEndAt || null;
 
     if (saved.running && saved.endAt) {
+      timer.endAt = saved.endAt;
       var left = Math.round((saved.endAt - Date.now()) / 1000);
       if (left > 0) {
         timer.remaining = left;
-        start();                       // reanuda y recalcula endAt
+        start();                       // reanuda con el tiempo real restante
         return true;
       }
-      timer.endAt = saved.endAt;
       if (saved.endAt !== saved.lastFinishedEndAt) {
         timer.remaining = 0;
-        finish();                      // terminó mientras la app estaba cerrada
+        finish(timer.mode !== 'work');  // terminó cerrado: cierra la ronda sin duplicar
         return true;
       }
       timer.remaining = timer.total;
@@ -438,6 +605,8 @@
   }
 
   function init() {
+    if (init.done) return;
+    init.done = true;
     if (!restoreTimer()) {
       timer.subjectId = store.get().subjects.length ? store.get().subjects[0].id : null;
       timer.total = secondsFor('work');
@@ -446,6 +615,9 @@
     store.subscribe(function () {
       if (Studia.router.current() === 'study') refresh();
     });
+    document.addEventListener('visibilitychange', onVisibility);
+    global.addEventListener('pagehide', flushOnExit);
+    global.addEventListener('beforeunload', flushOnExit);
   }
 
   Studia.modules = Studia.modules || {};

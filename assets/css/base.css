@@ -4,14 +4,20 @@
    ========================================================= */
 
 :root {
-  /* Marca */
-  --brand-50:  #eef2ff;
-  --brand-100: #e0e7ff;
-  --brand-200: #c7d2fe;
-  --brand-400: #818cf8;
-  --brand-500: #6366f1;
-  --brand-600: #4f46e5;
-  --brand-700: #4338ca;
+  /* Marca: morado Studia-IA */
+  --brand-50:  #f5f3ff;
+  --brand-100: #ede9fe;
+  --brand-200: #ddd6fe;
+  --brand-400: #a78bfa;
+  --brand-500: #7c3aed;
+  --brand-600: #6d28d9;
+  --brand-700: #5b21b6;
+
+  /* Morado de la barra lateral */
+  --side-1: #4c1d95;
+  --side-2: #6d28d9;
+  --side-text: #ddd6fe;
+  --side-text-strong: #ffffff;
 
   --mint-100: #d1fae5;
   --mint-500: #10b981;
@@ -25,33 +31,33 @@
   --sky-100:   #e0f2fe;
   --sky-500:   #0ea5e9;
   --sky-600:   #0284c7;
-  --violet-500:#8b5cf6;
+  --violet-500:#a855f7;
 
   /* Superficies (tema claro) */
-  --bg:        #f5f6fb;
+  --bg:        #f4f4f9;
   --surface:   #ffffff;
-  --surface-2: #f1f3f9;
-  --surface-3: #e8ebf3;
-  --border:    #e3e7f0;
-  --border-strong: #cfd6e6;
+  --surface-2: #f2f1f8;
+  --surface-3: #e9e7f3;
+  --border:    #e6e3f0;
+  --border-strong: #d2cde4;
 
   /* Texto */
-  --text:      #101828;
-  --text-muted:#5b6b85;
-  --text-soft: #8b98ad;
+  --text:      #17122b;
+  --text-muted:#625c78;
+  --text-soft: #918ba6;
 
   /* Formas */
   --radius-sm: 10px;
-  --radius:    14px;
-  --radius-lg: 20px;
-  --radius-xl: 26px;
+  --radius:    16px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
 
   /* Sombras */
-  --shadow-xs: 0 1px 2px rgba(16, 24, 40, .05);
-  --shadow-sm: 0 1px 3px rgba(16, 24, 40, .07), 0 1px 2px rgba(16, 24, 40, .04);
-  --shadow-md: 0 6px 18px -6px rgba(16, 24, 40, .16), 0 2px 6px rgba(16, 24, 40, .05);
-  --shadow-lg: 0 20px 44px -16px rgba(16, 24, 40, .28);
-  --ring: 0 0 0 3px rgba(99, 102, 241, .28);
+  --shadow-xs: 0 1px 2px rgba(23, 18, 43, .05);
+  --shadow-sm: 0 1px 3px rgba(23, 18, 43, .07), 0 1px 2px rgba(23, 18, 43, .04);
+  --shadow-md: 0 8px 20px -8px rgba(46, 26, 90, .18), 0 2px 6px rgba(23, 18, 43, .05);
+  --shadow-lg: 0 22px 48px -18px rgba(46, 26, 90, .32);
+  --ring: 0 0 0 3px rgba(124, 58, 237, .26);
 
   /* Métricas */
   --sidebar-w: 254px;
@@ -74,15 +80,19 @@
   --text-muted:#9dabc2;
   --text-soft: #71809a;
 
-  --brand-50:  #1e2340;
-  --brand-100: #262d52;
-  --brand-200: #333d6b;
+  --brand-50:  #241b3e;
+  --brand-100: #2e2350;
+  --brand-200: #3d3068;
+
+  --side-1: #1b1130;
+  --side-2: #312360;
+  --side-text: #cfc6ea;
 
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, .4);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, .45);
   --shadow-md: 0 8px 22px -8px rgba(0, 0, 0, .6);
   --shadow-lg: 0 24px 50px -18px rgba(0, 0, 0, .75);
-  --ring: 0 0 0 3px rgba(129, 140, 248, .38);
+  --ring: 0 0 0 3px rgba(167, 139, 250, .38);
 }
 
 /* ---------- Reset ---------- */
@@ -240,7 +250,10 @@ img, svg { display: block; max-width: 100%; }
   .grid--split { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 720px) {
-  .grid-2, .grid-3, .grid-4 { grid-template-columns: minmax(0, 1fr); }
+  .grid-2, .grid-3 { grid-template-columns: minmax(0, 1fr); }
+  /* En móvil las cuatro tarjetas de resumen van en rejilla de a dos:
+     a una por fila ocupan media pantalla de alto sin aportar más. */
+  .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 .sr-only {

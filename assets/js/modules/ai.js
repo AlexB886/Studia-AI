@@ -274,11 +274,22 @@
   }
 
   /* ---------------- Chat ---------------- */
+  var lastSent = null;   // último texto enviado, por si falla la respuesta
+  var lastFailed = null; // texto que se quedó sin respuesta (botón reintentar)
+
+  function setTyping(on) {
+    var bar = document.getElementById('aiTypingBar');
+    if (bar) bar.hidden = !on;
+  }
+
   function send(text) {
+    lastSent = text;
+    lastFailed = null;
     var messages = (store.get().ai.messages || []).slice();
     messages.push({ id: U.uid('m'), role: 'me', text: text, time: new Date().toISOString() });
     store.update(function (s) { s.ai.messages = messages; });
     showTyping();
+    setTyping(true);
 
     if (pending) pending.abort();            // una sola respuesta a la vez
     var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -288,6 +299,7 @@
       .then(function (res) {
         if (pending === ctrl) pending = null;
         removeTyping();
+        setTyping(false);
         var list = (store.get().ai.messages || []).slice();
         list.push({ id: U.uid('m'), role: 'ai', text: (res && res.text) || '', time: new Date().toISOString() });
         store.update(function (s) { s.ai.messages = list; });
@@ -295,8 +307,10 @@
       .catch(function (err) {
         if (pending === ctrl) pending = null;
         removeTyping();
+        setTyping(false);
         if (err && err.name === 'AbortError') return;
-        ui.toast('Luna no ha podido responder. Inténtalo otra vez.', 'error');
+        lastFailed = lastSent;
+        refresh();
         if (Studia.captureError) Studia.captureError('ia', err && err.message, err && err.stack);
       });
   }
@@ -501,6 +515,15 @@
           U.h('button.btn.btn--ghost.btn--sm', { onclick: function () { store.update(function (s) { s.ai.messages = []; }); } }, 'Limpiar chat')
         ]),
         chat,
+        U.h('div.ai-retry', { hidden: !lastFailed }, [
+          U.icon('alert'),
+          U.h('span', 'Luna no ha podido responder.'),
+          U.h('button.btn.btn--soft.btn--sm', {
+            onclick: function () { var t = lastFailed; lastFailed = null; if (t) send(t); }
+          }, 'Reintentar')
+        ]),
+        U.h('div.ai-typing-bar', { id: 'aiTypingBar', hidden: true, 'aria-live': 'polite' },
+          [U.h('span', (ai.name || 'Luna') + ' está escribiendo…'), U.h('i'), U.h('i'), U.h('i')]),
         U.h('div.quick-prompts', quick.map(function (p) {
           return U.h('button.quick-prompt', { onclick: function () { send(p); } }, p);
         })),
@@ -540,6 +563,16 @@
   function refresh() {
     var main = document.getElementById('appMain');
     if (main && Studia.router.current() === 'ai') render(main);
+    paintChatExtras();
+  }
+
+  /* El chat se pinta desde el estado en cada render, pero el aviso de
+     reintento y la barra de "escribiendo" son transitorios: hay que
+     sincronizarlos tras cada repintado. */
+  function paintChatExtras() {
+    var retry = document.querySelector('.ai-retry');
+    if (retry) retry.hidden = !lastFailed;
+    setTyping(!!pending);
   }
 
   function init() {

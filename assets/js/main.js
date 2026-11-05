@@ -122,6 +122,33 @@
     });
   }
 
+  /* Sugerencia diaria de pomodoro si hoy hay examen o entrega. Se guarda en
+     localStorage para no repetir el aviso cada vez que se abre la campana. */
+  function examNudge(popover) {
+    var today = U.today();
+    var exam = store.get().events.filter(function (e) {
+      return e.date === today && (e.type === 'exam' || e.type === 'deadline');
+    })[0];
+    if (!exam) return null;
+    var key = 'studia.nudge.' + exam.id + '.' + today;
+    try { if (global.localStorage.getItem(key)) return null; } catch (e) { /* sin storage */ }
+
+    var timer = Studia.modules && Studia.modules.study ? Studia.modules.study.state() : null;
+    if (timer && timer.running) return null;   // ya está estudiando
+
+    return U.h('div.ai-retry', { style: { margin: '0 0 10px' } }, [
+      U.icon('target'),
+      U.h('span', '📝 ' + exam.title + ' · hoy. Un pomodoro ayuda.'),
+      U.h('button.btn.btn--soft.btn--sm', {
+        onclick: function () {
+          try { global.localStorage.setItem(key, '1'); } catch (e) { /* sin storage */ }
+          popover.hidden = true;
+          Studia.router.go('study');
+        }
+      }, 'A estudiar')
+    ]);
+  }
+
   function drawReminders(popover) {
     U.clear(popover);
     var today = U.today();
@@ -136,12 +163,27 @@
       U.h('span.badge', soon.length + overdue.length)
     ]));
 
+    var nudge = examNudge(popover);
+    if (nudge) popover.appendChild(nudge);
+
     if (overdue.length) {
       popover.appendChild(U.h('p.field__label.mb-1', 'Tareas vencidas'));
       overdue.forEach(function (t) {
-        popover.appendChild(U.h('button.search-results__item', {
-          onclick: function () { popover.hidden = true; Studia.router.go('tasks'); }
-        }, [U.icon('check'), U.h('div.grow', [U.h('div.tiny.strong', t.title), U.h('div.tiny.soft', 'Vencía ' + U.fmtRelative(t.due))])]));
+        popover.appendChild(U.h('div.row.gap-1', [
+          U.h('button.search-results__item', { style: { flex: '1', minWidth: '0' },
+            onclick: function () { popover.hidden = true; Studia.router.go('tasks'); }
+          }, [U.icon('check'), U.h('div.grow', [U.h('div.tiny.strong', t.title), U.h('div.tiny.soft', 'Vencía ' + U.fmtRelative(t.due))])]),
+          U.h('button.icon-btn', {
+            style: { flex: 'none' },
+            title: 'Posponer 7 días', 'aria-label': 'Posponer ' + t.title + ' 7 días',
+            onclick: function (ev) {
+              ev.stopPropagation();
+              store.updateRow('tasks', t.id, { due: U.toISO(U.addDays(new Date(), 7)) });
+              ui.toast('Pospuesta 7 días', 'success');
+              drawReminders(popover);
+            }
+          }, U.icon('calendar'))
+        ]));
       });
     }
 
@@ -181,10 +223,9 @@
 
   /* ---------------- Perfil y ajustes ---------------- */
   function wireProfile() {
-    document.getElementById('btnProfile').addEventListener('click', function (e) {
-      e.stopPropagation();
+    function showProfile(anchor) {
       var p = store.get().profile;
-      ui.popover(document.getElementById('btnProfile'), U.h('div.col.gap-2', { style: { padding: '6px' } }, [
+      ui.popover(anchor, U.h('div.col.gap-2', { style: { padding: '6px' } }, [
         U.h('div', [U.h('strong.small', p.name), U.h('p.tiny.soft', p.university || '')]),
         U.h('button.btn.btn--ghost.btn--sm.btn--block', { onclick: function () { openSettings(); } }, [U.icon('settings'), 'Ajustes']),
         U.h('button.btn.btn--ghost.btn--sm.btn--block', {
@@ -200,6 +241,14 @@
           }
         }, [U.icon('reset'), 'Restablecer demo'])
       ]));
+    }
+    ['btnProfile', 'btnSidebarProfile'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('click', function (e) {
+        e.stopPropagation();
+        showProfile(el);
+      });
     });
   }
 
@@ -347,7 +396,7 @@
     }
 
     var plan = document.getElementById('brandPlan');
-    if (plan) plan.textContent = state.profile.plan === 'premium' ? 'Plan Premium ✨' : 'Plan gratuito';
+    if (plan) plan.textContent = state.profile.plan === 'premium' ? 'Plan Premium' : 'Plan gratuito';
 
     var initials = document.getElementById('avatarInitials');
     if (initials) initials.textContent = state.profile.initials || 'ES';
@@ -355,7 +404,10 @@
     var bellDot = document.getElementById('bellDot');
     if (bellDot) {
       var urgent = store.overdueTasks().length + state.events.filter(function (e) {
-        return e.date >= U.today() && U.daysBetween(U.today(), e.date) <= 1;
+        if (e.date < U.today()) return false;
+        var left = U.daysBetween(U.today(), e.date);
+        // exámenes y entregas avisan con 3 días; el resto, con 1
+        return left <= (e.type === 'exam' || e.type === 'deadline' ? 3 : 1);
       }).length;
       bellDot.hidden = !urgent;
     }
@@ -445,7 +497,7 @@
   /* ---------------- Diagnóstico ----------------
      Cualquier error no controlado se guarda aquí para poder copiarlo y
      reportarlo. Es la forma más rápida de saber qué falla en otro equipo. */
-  var APP_VERSION = '0.3.2';
+  var APP_VERSION = '0.4.0';
   var recentErrors = [];
 
   function captureError(kind, message, detail) {
