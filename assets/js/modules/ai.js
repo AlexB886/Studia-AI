@@ -247,7 +247,7 @@
        Studia.ai.groq.setKey('gsk_...')   // activa el motor Groq
        Studia.ai.groq.setKey(null)        // vuelve al motor local     */
   var GROQ_KEY_LS = 'studia.groq.key';
-  var GROQ_MODELS = ['openai/gpt-oss-20b', 'qwen/qwen3.8-27b'];
+  var GROQ_MODELS = ['openai/gpt-oss-20b'];
 
   function groqKey() {
     try { return global.localStorage.getItem(GROQ_KEY_LS) || ''; } catch (e) { return ''; }
@@ -255,8 +255,10 @@
 
   function groqSystem(ctx) {
     var lines = [
-      'Eres ' + ((ctx.profile && ctx.profile.name) ? 'Luna' : 'Luna') + ', la asistente de estudio de la app Studia-IA.',
-      'Hablas español, tuteas, respondes en 2-4 frases muy concretas y, si toca, una lista corta.',
+      'Eres Luna, la asistente de estudio de la app Studia-IA.',
+      'Idioma: español, en todo momento y sin excepciones. Tutea al estudiante.',
+      'Responde SIEMPRE de forma directa, como si hablaras con un compañero. 2-4 frases o una lista de 3-5 puntos.',
+      'PROHIBIDO escribir tu razonamiento, tus notas internas o comentarios sobre cómo vas a responder. Solo la respuesta final.',
       'Usas SOLO los datos del contexto; no inventes tareas, fechas ni asignaturas.',
       'Perfil: ' + (ctx.profile.name || 'estudiante') + ', curso ' + (ctx.profile.course || '-') + '.',
       'Minutos de estudio de hoy: ' + ctx.minutesToday + '.',
@@ -316,9 +318,26 @@
         clearTimeout(timeout);
         if (opts && opts.signal) opts.signal.removeEventListener('abort', onAbort);
         var choice = data && data.choices && data.choices[0] && data.choices[0].message;
-        var content = (choice && (choice.content || choice.reasoning)) || '';
-        content = String(content).replace(/<\|[^|>]*\|>/g, '').trim();
-        return { text: content || 'No he sabido responder. Prueba otra vez.' };
+        var raw = (choice && (choice.content || choice.reasoning)) || '';
+        var content = String(raw).replace(/<\|[^|>]*\|>/g, '').trim();
+        return { text: content, leaked: !(choice && choice.content) };
+      }).then(function (r) {
+        // gpt-oss a veces devuelve su razonamiento interno: se pide una vez
+        // más, en seco, solo la respuesta final.
+        if (!r.text || !r.leaked) return r.text ? { text: r.text } : { text: 'No he sabido responder. Prueba otra vez.' };
+        var retry = msgs.concat([{ role: 'user', content: 'Responde otra vez, en español y SOLO con la respuesta final. Nada de razonamiento ni notas internas.' }]);
+        return fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+          body: JSON.stringify({ model: GROQ_MODELS[0], messages: retry, temperature: 0.4, max_tokens: 350 }),
+          signal: ctrl ? ctrl.signal : undefined
+        }).then(function (res) { return res.ok ? res.json() : data; })
+          .catch(function () { return data; })
+          .then(function (data2) {
+            var c2 = data2 && data2.choices && data2.choices[0] && data2.choices[0].message;
+            var t2 = String((c2 && (c2.content || '')) || '').replace(/<\|[^|>]*\|>/g, '').trim();
+            return { text: t2 || 'No he sabido responder. Prueba otra vez.' };
+          });
       }).catch(function (err) {
         clearTimeout(timeout);
         if (opts && opts.signal) opts.signal.removeEventListener('abort', onAbort);
