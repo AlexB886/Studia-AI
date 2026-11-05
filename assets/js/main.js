@@ -277,6 +277,8 @@
 
     var regions = (s.holidayRegions || []).slice();
     var fileInput = U.h('input', { type: 'file', accept: '.json,application/json', hidden: true });
+    var aiKeyInput = U.h('input', { type: 'password', placeholder: 'gsk_…', autocomplete: 'off', style: { flex: '1', minWidth: '0' } });
+    try { aiKeyInput.value = global.localStorage.getItem('studia.groq.key') || ''; } catch (e) { /* sin storage */ }
     fileInput.addEventListener('change', function () {
       var file = fileInput.files && fileInput.files[0];
       fileInput.value = '';
@@ -328,6 +330,21 @@
             });
             return U.h('label.switch', [input, U.h('span.switch__track'), U.h('span.small', Studia.holidays.REGIONS[key].label)]);
           }))
+        ]),
+        U.h('div.field', [
+          U.h('label.field__label', 'Luna con IA real (Groq)'),
+          U.h('p.tiny.soft.mb-1', 'Pega tu clave gratuita de console.groq.com. Se guarda solo en este navegador; nunca se sube al repositorio. Sin clave, Luna responde en modo sin conexión.'),
+          U.h('div.row.gap-2', [
+            aiKeyInput,
+            U.h('button.btn.btn--ghost.btn--sm', {
+              type: 'button',
+              onclick: function () {
+                var k = aiKeyInput.value.trim();
+                Studia.ai.groq.setKey(k || null);
+                ui.toast(k ? 'Luna con IA real activada' : 'Luna vuelve al modo sin conexión', 'success');
+              }
+            }, 'Guardar clave')
+          ])
         ]),
         U.h('div.field', [
           U.h('label.field__label', 'Copia de seguridad'),
@@ -503,7 +520,8 @@
     recentErrors.push(item);
     if (recentErrors.length > 20) recentErrors.shift();
     Studia.lastError = item;
-    if (global.console && console.error) {
+    // Los avisos esperados (kind 'ia') se registran pero no ensucian la consola.
+    if (kind !== 'ia' && global.console && console.error) {
       console.error('[Studia-IA ' + APP_VERSION + '] ' + kind + ':', message, detail || '');
     }
     if (kind === 'unhandledrejection') return;

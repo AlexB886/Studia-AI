@@ -239,8 +239,100 @@
     }
   };
 
-  var engine = localEngine;
+  /* ---------------- Motor Groq (IA real) ----------------
+     La clave se guarda SOLO en localStorage (clave `studia.groq.key`),
+     nunca en el repositorio ni en la base de datos. Sin clave, o si la
+     API falla, Luna usa el motor local: el chat nunca se queda vacío.
+
+       Studia.ai.groq.setKey('gsk_...')   // activa el motor Groq
+       Studia.ai.groq.setKey(null)        // vuelve al motor local     */
+  var GROQ_KEY_LS = 'studia.groq.key';
+  var GROQ_MODELS = ['openai/gpt-oss-20b', 'qwen/qwen3.8-27b'];
+
+  function groqKey() {
+    try { return global.localStorage.getItem(GROQ_KEY_LS) || ''; } catch (e) { return ''; }
+  }
+
+  function groqSystem(ctx) {
+    var lines = [
+      'Eres ' + ((ctx.profile && ctx.profile.name) ? 'Luna' : 'Luna') + ', la asistente de estudio de la app Studia-IA.',
+      'Hablas español, tuteas, respondes en 2-4 frases muy concretas y, si toca, una lista corta.',
+      'Usas SOLO los datos del contexto; no inventes tareas, fechas ni asignaturas.',
+      'Perfil: ' + (ctx.profile.name || 'estudiante') + ', curso ' + (ctx.profile.course || '-') + '.',
+      'Minutos de estudio de hoy: ' + ctx.minutesToday + '.',
+      'Asignaturas: ' + (ctx.subjects.map(function (x) { return x.name; }).join(', ') || 'ninguna') + '.',
+      ctx.nextExam ? 'Próximo examen: ' + ctx.nextExam.title + ' el ' + ctx.nextExam.date + '.' : 'No hay exámenes próximos.',
+      ctx.openTasks.length ? 'Tareas abiertas: ' + ctx.openTasks.map(function (t) { return t.title + ' (vence ' + t.due + ')'; }).join('; ') + '.' : 'No hay tareas abiertas.',
+      'Si piden un plan, da pasos realizables con pomodoros de 25 minutos.'
+    ];
+    return lines.join('\n');
+  }
+
+  var groqEngine = {
+    name: 'groq',
+    ask: function (text, ctx, opts) {
+      var key = groqKey();
+      if (!key) return Promise.reject(new Error('Sin clave de Groq'));
+      var msgs = [{ role: 'system', content: groqSystem(ctx) }];
+      (ctx.history || []).forEach(function (m) {
+        msgs.push({ role: m.role === 'me' ? 'user' : 'assistant', content: m.text });
+      });
+      msgs.push({ role: 'user', content: text });
+
+      var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      var timeout = setTimeout(function () { if (ctrl) ctrl.abort(); }, 25000);
+      var onAbort = function () { if (ctrl) ctrl.abort(); };
+      if (opts && opts.signal) {
+        if (opts.signal.aborted) { clearTimeout(timeout); return Promise.reject(new DOMException('Cancelado', 'AbortError')); }
+        opts.signal.addEventListener('abort', onAbort);
+      }
+
+      function attempt(i) {
+        var model = GROQ_MODELS[Math.min(i, GROQ_MODELS.length - 1)];
+        return fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+          body: JSON.stringify({ model: model, messages: msgs, temperature: 0.6, max_tokens: 400 }),
+          signal: ctrl ? ctrl.signal : undefined
+        }).then(function (res) {
+          if (res.status === 404 || res.status === 429 || res.status >= 500) {
+            // modelo no disponible, saturado o caído: probamos el siguiente
+            if (i + 1 < GROQ_MODELS.length) return attempt(i + 1);
+            if (res.status === 429) { var e = new Error('Luna está saturada; espera unos segundos'); e.groq = 'rate'; throw e; }
+            throw new Error(res.status === 404 ? 'Ningún modelo de Groq está disponible ahora' : 'Groq ' + res.status);
+          }
+          if (!res.ok) {
+            return res.json().catch(function () { return {}; }).then(function (b) {
+              var msg = (b.error && b.error.message) || ('Groq ' + res.status);
+              var e = new Error(/key|api/i.test(msg) && res.status === 401 ? 'La clave de Groq no es válida' : msg);
+              throw e;
+            });
+          }
+          return res.json();
+        });
+      }
+
+      return attempt(0).then(function (data) {
+        clearTimeout(timeout);
+        if (opts && opts.signal) opts.signal.removeEventListener('abort', onAbort);
+        var choice = data && data.choices && data.choices[0] && data.choices[0].message;
+        var content = (choice && (choice.content || choice.reasoning)) || '';
+        content = String(content).replace(/<\|[^|>]*\|>/g, '').trim();
+        return { text: content || 'No he sabido responder. Prueba otra vez.' };
+      }).catch(function (err) {
+        clearTimeout(timeout);
+        if (opts && opts.signal) opts.signal.removeEventListener('abort', onAbort);
+        throw err;
+      });
+    }
+  };
+
+  var engine = groqKey() ? groqEngine : localEngine;
   var pending = null;
+
+  function applyEngineFromKey() {
+    engine = groqKey() ? groqEngine : localEngine;
+  }
 
   function buildContext() {
     var s = store.get();
@@ -309,6 +401,24 @@
         removeTyping();
         setTyping(false);
         if (err && err.name === 'AbortError') return;
+        // Si el fallo es de la API real, Luna responde con el motor local.
+        if (engine !== localEngine) {
+          localEngine.ask(text, buildContext(), { signal: ctrl && ctrl.signal })
+            .then(function (res) {
+              removeTyping();
+              setTyping(false);
+              var list = (store.get().ai.messages || []).slice();
+              list.push({ id: U.uid('m'), role: 'ai', text: (res && res.text) || '', time: new Date().toISOString() });
+              store.update(function (s) { s.ai.messages = list; });
+              ui.toast('Luna real no disponible: respondo con el modo sin conexión', 'warn');
+            })
+            .catch(function () {
+              lastFailed = lastSent;
+              refresh();
+            });
+          if (Studia.captureError) Studia.captureError('ia', err && err.message, err && err.stack);
+          return;
+        }
         lastFailed = lastSent;
         refresh();
         if (Studia.captureError) Studia.captureError('ia', err && err.message, err && err.stack);
@@ -583,9 +693,23 @@
 
   Studia.ai = {
     engine: function () { return engine; },
+    engineName: function () { return engine.name; },
     setEngine: function (next) { engine = next || localEngine; return engine; },
     ask: function (text, opts) { return engine.ask(text, buildContext(), opts); },
-    localEngine: localEngine
+    localEngine: localEngine,
+    groq: {
+      hasKey: function () { return !!groqKey(); },
+      models: GROQ_MODELS,
+      setKey: function (k) {
+        try {
+          if (k) global.localStorage.setItem(GROQ_KEY_LS, k.trim());
+          else global.localStorage.removeItem(GROQ_KEY_LS);
+        } catch (e) { /* sin storage */ }
+        applyEngineFromKey();
+        return engine.name;
+      },
+      engine: groqEngine
+    }
   };
 
   Studia.modules = Studia.modules || {};
