@@ -191,9 +191,12 @@
   }
 
   function agendaList() {
-    var from = U.today();
-    var to = U.toISO(U.addDays(view.month, 45));
-    var events = store.eventsBetween(from, to).filter(function (e) { return view.filters[e.type] !== false; });
+    var today = U.today();
+    var monthStart = U.toISO(U.startOfMonth(view.month));
+    var monthEnd = U.toISO(U.addDays(U.addMonths(U.startOfMonth(view.month), 1), -1));
+    var monthLabel = U.MESES[view.month.getMonth()] + ' ' + view.month.getFullYear();
+    var from = view.month.getTime() < U.toDate(U.startOfMonth(new Date())).getTime() ? monthStart : today;
+    var events = store.eventsBetween(from, monthEnd).filter(function (e) { return view.filters[e.type] !== false; });
     var hols = holidaysMap();
     var byDate = U.groupBy(events, function (e) { return e.date; });
     var dates = Object.keys(byDate).sort();
@@ -202,8 +205,8 @@
     if (!dates.length) {
       list.appendChild(U.h('div.empty', [
         U.h('div.empty__icon', U.icon('calendar')),
-        U.h('h4', 'Nada programado por ahora'),
-        U.h('p', 'Crea tu primer evento o cambia a la vista de mes.'),
+        U.h('h4', 'No hay eventos en ' + monthLabel),
+        U.h('p', 'Tampoco hay nada programado para los próximos días de este mes. Crea el primero y aparecerá aquí y en el calendario.'),
         U.h('button.btn.btn--primary.btn--sm', { onclick: function () { openEventForm(null, view.selected); } }, [U.icon('plus'), 'Añadir evento'])
       ]));
       return list;
@@ -279,7 +282,8 @@
           ]);
         }) : [U.h('div.empty', { style: { padding: '18px 8px' } }, [
           U.h('div.empty__icon', U.icon('calendar')),
-          U.h('p.small', 'Sin eventos este día.')
+          U.h('p.small', 'Sin eventos este día.'),
+          U.h('button.btn.btn--primary.btn--sm', { onclick: function () { openEventForm(null, iso); } }, [U.icon('plus'), 'Añadir evento'])
         ])])
       ]),
       U.h('div.card', [
