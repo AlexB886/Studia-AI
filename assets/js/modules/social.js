@@ -127,10 +127,14 @@
         replyBox.dataset.ready = '1';
         var input = U.h('input.input.input--sm', { placeholder: 'Escribe una respuesta…' });
         input.addEventListener('keydown', function (e) {
-          if (e.key === 'Enter') {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
             var v = input.value.trim();
             if (!v) return;
-            var list = (store.find('forum', p.id).replies || []).slice();
+            var current = store.find('forum', p.id);
+            if (!current) return;
+            input.disabled = true;
+            var list = (current.replies || []).slice();
             list.push({ author: store.get().profile.name, text: v });
             store.updateRow('forum', p.id, { replies: list });
           }

@@ -108,7 +108,7 @@
       body.appendChild(U.h('div.row.gap-1.row--wrap', [
         U.h('button.btn.btn--ghost.btn--sm', { onclick: function () { openNoteForm(s, { type: 'link', title: 'Apuntes (Word)', url: 'https://docs.google.com/document/d/' }, draw); } }, [U.icon('link'), 'Enlace a Word']),
         U.h('button.btn.btn--ghost.btn--sm', { onclick: function () { openNoteForm(s, { type: 'link', title: 'Hoja de cálculo (Excel)', url: 'https://docs.google.com/spreadsheets/d/' }, draw); } }, [U.icon('link'), 'Enlace a Excel']),
-        U.h('button.btn.btn--ghost.btn--sm', { onclick: function () { openNoteForm(s, { type: 'file' }, draw); } }, [U.icon('upload'), 'Subir documento']),
+        U.h('button.btn.btn--ghost.btn--sm', { onclick: function () { openNoteForm(s, { type: 'file' }, draw); } }, [U.icon('file'), 'Registrar archivo']),
         U.h('button.btn.btn--ghost.btn--sm', { onclick: function () { openNoteForm(s, { type: 'video' }, draw); } }, [U.icon('video'), 'Añadir vídeo'])
       ]));
 
@@ -126,7 +126,7 @@
           U.h('div.note-item__icon', U.icon(NOTE_TYPES[n.type] ? NOTE_TYPES[n.type].icon : 'file')),
           U.h('div.grow', [
             U.h('div.small.strong.truncate', n.title),
-            U.h('div.tiny.soft', n.size || (n.type === 'link' ? 'Enlace externo' : 'Archivo local'))
+            U.h('div.tiny.soft', n.size || (n.type === 'link' ? 'Enlace externo' : n.type === 'file' ? 'Referencia de archivo · demo' : 'Vídeo'))
           ]),
           n.url ? U.h('a.icon-btn', { href: n.url, target: '_blank', rel: 'noopener', title: 'Abrir' }, U.icon('link')) : null,
           U.h('button.icon-btn', { onclick: function () { store.remove('notes', n.id); draw(); }, title: 'Eliminar' }, U.icon('trash'))
@@ -171,14 +171,15 @@
 
   function openNoteForm(subject, preset, done) {
     var note = Object.assign({ subjectId: subject.id, title: '', type: 'link', url: '', size: '' }, preset || {});
-    var isNew = !preset;
+    var isNew = !note.id;
+    var isFile = note.type === 'file';
     ui.formModal({
-      title: isNew ? 'Añadir apunte' : 'Editar apunte',
-      subtitle: subject.name,
+      title: isNew ? (isFile ? 'Registrar archivo' : 'Añadir apunte') : 'Editar apunte',
+      subtitle: isFile ? subject.name + ' · Demo: no se sube ningún archivo, solo se guarda su referencia.' : subject.name,
       fields: [
         { name: 'title', label: 'Título', value: note.title, required: true, placeholder: 'Ej. Apuntes tema 3' },
         { name: 'type', label: 'Tipo', type: 'select', value: note.type, options: Object.keys(NOTE_TYPES).map(function (k) { return { value: k, label: NOTE_TYPES[k].label }; }) },
-        { name: 'url', label: 'Enlace', value: note.url, placeholder: 'https://…' },
+        { name: 'url', label: isFile ? 'Ruta o enlace (opcional)' : 'Enlace', value: note.url, placeholder: 'https://… o ubicación del archivo' },
         { name: 'size', label: 'Tamaño / duración', value: note.size, placeholder: 'Ej. 1,2 MB · 18 min' }
       ],
       submitLabel: isNew ? 'Guardar apunte' : 'Actualizar',
