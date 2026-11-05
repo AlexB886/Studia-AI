@@ -15,7 +15,57 @@
   var WEEK = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
   var COLORS = ['var(--brand-500)', 'var(--mint-500)', 'var(--amber-500)', 'var(--rose-500)', 'var(--sky-500)', 'var(--violet-500)'];
 
-  var view = { showWeekend: false, selectedDay: null };
+  var view = { showWeekend: false, selectedDay: null, hiddenSubjects: {} };
+
+  function visibleClasses() {
+    return store.get().timetable.filter(function (c) { return !view.hiddenSubjects[c.subjectId]; });
+  }
+
+  function subjectIdsInTimetable() {
+    var ids = [];
+    store.get().timetable.forEach(function (c) {
+      if (ids.indexOf(c.subjectId) === -1) ids.push(c.subjectId);
+    });
+    return ids.sort(function (a, b) {
+      return store.subjectName(a).localeCompare(store.subjectName(b), 'es');
+    });
+  }
+
+  function subjectFilterBar() {
+    var ids = subjectIdsInTimetable();
+    if (!ids.length) return null;
+    var all = ids.every(function (id) { return !view.hiddenSubjects[id]; });
+    var chips = ids.map(function (id) {
+      var on = !view.hiddenSubjects[id];
+      var color = store.subjectColor(id);
+      return U.h('button.badge.badge--outline', {
+        style: {
+          cursor: 'pointer',
+          opacity: on ? '1' : '.45',
+          borderColor: on ? color : 'var(--border)',
+          color: on ? color : 'var(--text-soft)'
+        },
+        title: on ? 'Ocultar ' + store.subjectName(id) : 'Mostrar ' + store.subjectName(id),
+        onclick: function () {
+          if (view.hiddenSubjects[id]) delete view.hiddenSubjects[id];
+          else view.hiddenSubjects[id] = true;
+          refresh();
+        }
+      }, [U.h('span.dot-color', { style: { background: color } }), store.subjectName(id)]);
+    });
+    chips.push(U.h('button.btn.btn--ghost.btn--sm', {
+      style: { marginLeft: 'auto' },
+      onclick: function () {
+        if (all) {
+          ids.forEach(function (id) { view.hiddenSubjects[id] = true; });
+        } else {
+          view.hiddenSubjects = {};
+        }
+        refresh();
+      }
+    }, all ? 'Ocultar todas' : 'Mostrar todas'));
+    return U.h('div.row.row--wrap.gap-1', { style: { padding: '0 18px 12px' } }, chips);
+  }
 
   /* ---------------- Detección de conflictos ---------------- */
   function conflictsOf(day) {
@@ -40,7 +90,7 @@
   /* ---------------- Resumen ---------------- */
   function weeklySummary() {
     var bySubject = {};
-    store.get().timetable.forEach(function (c) {
+    visibleClasses().forEach(function (c) {
       var mins = U.minutesBetween(c.start, c.end);
       bySubject[c.subjectId] = (bySubject[c.subjectId] || 0) + mins;
     });
@@ -92,7 +142,7 @@
           openForm(null, { day: day, start: U.minutesToTime(minutes), end: U.minutesToTime(Math.min(minutes + 90, END_H * 60)) });
         });
 
-        store.get().timetable.filter(function (c) { return c.day === day; }).forEach(function (c) {
+        visibleClasses().filter(function (c) { return c.day === day; }).forEach(function (c) {
           var s = U.timeToMinutes(c.start), e = U.timeToMinutes(c.end);
           var top = (s - START_H * 60) / 60 * HOUR_H;
           var height = Math.max(26, (e - s) / 60 * HOUR_H - 3);
@@ -133,6 +183,7 @@
           U.h('button.btn.btn--primary.btn--sm', { onclick: function () { openForm(null, { day: U.dayIndex(new Date()), start: '09:00', end: '10:30' }); } }, [U.icon('plus'), 'Clase'])
         ])
       ]),
+      subjectFilterBar(),
       U.h('div.tt', [head, body]),
       U.h('p.tt-hint.tiny.soft', 'Desliza en horizontal para ver toda la semana')
     ]);
@@ -144,7 +195,7 @@
     for (var d = 0; d < 7; d++) {
       conflictsOf(d).forEach(function (p) { conflicts.push({ day: d, ids: p }); });
     }
-    var today = store.todayClasses();
+    var today = store.todayClasses().filter(function (c) { return !view.hiddenSubjects[c.subjectId]; });
 
     return U.h('div.col.gap-2', [
       U.h('div.card', [
