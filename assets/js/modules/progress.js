@@ -10,6 +10,7 @@
   var U = Studia.utils, store = Studia.store, ui = Studia.ui;
 
   var view = { range: 30 };
+  var chartSeq = 0;   // ids únicos: dos SVG en la página no pueden compartir 'areaGrad'
 
   /* ---------------- Estadísticas ---------------- */
   function stats(range) {
@@ -28,8 +29,10 @@
 
     var bySubject = {};
     inRange.forEach(function (s) {
-      if (!s.subjectId) return;
-      bySubject[s.subjectId] = (bySubject[s.subjectId] || 0) + s.minutes;
+      /* Las sesiones sin asignatura también cuentan: antes desaparecían del
+         reparto y el total no cuadraba con las barras. */
+      var key = s.subjectId || '__none';
+      bySubject[key] = (bySubject[key] || 0) + s.minutes;
     });
 
     return {
@@ -37,8 +40,8 @@
       week: week,
       avg: avg,
       activeDays: days,
-      bySubject: Object.keys(bySubject).map(function (id) {
-        return { subjectId: id, minutes: bySubject[id] };
+      bySubject: Object.keys(bySubject).map(function (key) {
+        return { subjectId: key === '__none' ? null : key, minutes: bySubject[key] };
       }).sort(function (a, b) { return b.minutes - a.minutes; }),
       inRange: inRange
     };
@@ -54,6 +57,30 @@
   }
 
   /* ---------------- Gráficos ---------------- */
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+
+  /* `U.h` crea nodos HTML; los hijos de un <svg> necesitan el namespace
+     SVG o el navegador pinta solo el texto y se salta líneas y barras.
+     Helper local para no tocar core/utils.js. */
+  function svgEl(tag, attrs, children) {
+    var node = document.createElementNS(SVG_NS, tag);
+    Object.keys(attrs || {}).forEach(function (key) {
+      var val = attrs[key];
+      if (val === null || val === undefined || val === false) return;
+      if (key === 'style' && typeof val === 'object') {
+        Object.keys(val).forEach(function (k) { node.style[k] = val[k]; });
+      } else {
+        node.setAttribute(key, val);
+      }
+    });
+    var list = children === null || children === undefined ? [] : (Array.isArray(children) ? children : [children]);
+    list.forEach(function (c) {
+      if (c instanceof Node) node.appendChild(c);
+      else node.appendChild(document.createTextNode(String(c)));
+    });
+    return node;
+  }
+
   function lineChart(data, range) {
     var W = 760, H = 240, padL = 42, padR = 12, padT = 16, padB = 28;
     var max = Math.max(60, Math.max.apply(null, data.map(function (d) { return d.minutes; })));
@@ -64,42 +91,58 @@
     function x(i) { return padL + i * step; }
     function y(v) { return padT + innerH - (v / max) * innerH; }
 
-    var svg = U.h('svg.chart', { viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'none', style: { height: '260px' } });
+    var svg = svgEl('svg', { class: 'chart', viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'none' });
 
-    svg.appendChild(U.h('defs', [
-      U.h('linearGradient', { id: 'areaGrad', x1: '0', y1: '0', x2: '0', y2: '1' }, [
-        U.h('stop', { offset: '0%', 'stop-color': 'var(--brand-500)', 'stop-opacity': '.28' }),
-        U.h('stop', { offset: '100%', 'stop-color': 'var(--brand-500)', 'stop-opacity': '0' })
+    /* el id del degradado va numerado: si no, dos SVG en la página (o un
+       re-render con el anterior aún montado) pelean por el mismo 'areaGrad' */
+    var gradId = 'areaGrad-' + (++chartSeq);
+    svg.appendChild(svgEl('defs', null, [
+      svgEl('linearGradient', { id: gradId, x1: '0', y1: '0', x2: '0', y2: '1' }, [
+        svgEl('stop', { offset: '0%', 'stop-color': 'var(--brand-500)', 'stop-opacity': '.28' }),
+        svgEl('stop', { offset: '100%', 'stop-color': 'var(--brand-500)', 'stop-opacity': '0' })
       ])
     ]));
 
     /* rejilla y eje Y */
     for (var g = 0; g <= 4; g++) {
       var v = (max / 4) * g;
-      svg.appendChild(U.h('line', { class: 'chart__grid', x1: padL, x2: W - padR, y1: y(v), y2: y(v) }));
-      svg.appendChild(U.h('text', { class: 'chart__label', x: padL - 8, y: y(v) + 4, 'text-anchor': 'end' }, String(Math.round(v))));
+      svg.appendChild(svgEl('line', { class: 'chart__grid', x1: padL, x2: W - padR, y1: y(v), y2: y(v) }));
+      svg.appendChild(svgEl('text', { class: 'chart__label', x: padL - 8, y: y(v) + 4, 'text-anchor': 'end' }, String(Math.round(v))));
     }
 
     var pts = data.map(function (d, i) { return [x(i), y(d.minutes)]; });
     var linePath = pts.map(function (p, i) { return (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' ');
     var areaPath = linePath + ' L' + x(data.length - 1).toFixed(1) + ' ' + (padT + innerH) + ' L' + padL + ' ' + (padT + innerH) + ' Z';
 
-    svg.appendChild(U.h('path', { class: 'chart__area', d: areaPath }));
-    svg.appendChild(U.h('path', { class: 'chart__line', d: linePath }));
+    /* Con 0 sesiones la línea queda pegada al suelo, que parece un fallo:
+       se avisa en su lugar y solo se dibuja la rejilla de referencia. */
+    var empty = !U.sum(data, function (d) { return d.minutes; });
+
+    if (!empty) {
+      svg.appendChild(svgEl('path', { class: 'chart__area', d: areaPath, style: { fill: 'url(#' + gradId + ')' } }));
+      svg.appendChild(svgEl('path', { class: 'chart__line', d: linePath }));
+    }
 
     pts.forEach(function (p, i) {
       var d = data[i];
-      svg.appendChild(U.h('circle', { class: 'chart__dot', cx: p[0], cy: p[1], r: 3.4, opacity: d.minutes ? 1 : 0 }));
-      var title = U.h('title');
-      title.textContent = U.fmtDate(d.iso, { short: true, day: true }) + ': ' + d.minutes + ' min';
-      svg.appendChild(title);
+      svg.appendChild(svgEl('circle', { class: 'chart__dot', cx: p[0], cy: p[1], r: 3.4, opacity: d.minutes ? 1 : 0 }));
+      svg.appendChild(svgEl('title', null, U.fmtDate(d.iso, { short: true, day: true }) + ': ' + d.minutes + ' min'));
     });
 
-    /* eje X */
-    var every = Math.ceil(data.length / 10);
+    if (empty) {
+      svg.appendChild(svgEl('text', {
+        class: 'chart__label', x: W / 2, y: padT + innerH / 2,
+        'text-anchor': 'middle', style: { 'font-size': '15px' }
+      }, 'Aún no hay sesiones en este periodo'));
+    }
+
+    /* eje X: en etiquetas estrechas (móvil) se solapan, así que menos */
+    var every = (global.innerWidth || 1024) < 600
+      ? Math.max(2, Math.ceil(data.length / 5))
+      : Math.ceil(data.length / 10);
     data.forEach(function (d, i) {
       if (i % every !== 0 && i !== data.length - 1) return;
-      svg.appendChild(U.h('text', { class: 'chart__label', x: x(i), y: H - 8, 'text-anchor': 'middle' }, U.fmtDate(d.iso, { short: true, day: true })));
+      svg.appendChild(svgEl('text', { class: 'chart__label', x: x(i), y: H - 8, 'text-anchor': 'middle' }, U.fmtDate(d.iso, { short: true, day: true })));
     });
 
     return svg;
@@ -112,26 +155,24 @@
     var bw = Math.min(70, (innerW / Math.max(1, items.length)) * 0.55);
     var gap = (innerW - bw * items.length) / Math.max(1, items.length);
 
-    var svg = U.h('svg.chart', { viewBox: '0 0 ' + W + ' ' + H, style: { height: '230px' } });
+    var svg = svgEl('svg', { class: 'chart chart--bars', viewBox: '0 0 ' + W + ' ' + H });
     for (var g = 0; g <= 4; g++) {
       var v = (max / 4) * g;
       var yy = padT + innerH - (v / max) * innerH;
-      svg.appendChild(U.h('line', { class: 'chart__grid', x1: padL, x2: W - padR, y1: yy, y2: yy }));
-      svg.appendChild(U.h('text', { class: 'chart__label', x: padL - 8, y: yy + 4, 'text-anchor': 'end' }, String(Math.round(v))));
+      svg.appendChild(svgEl('line', { class: 'chart__grid', x1: padL, x2: W - padR, y1: yy, y2: yy }));
+      svg.appendChild(svgEl('text', { class: 'chart__label', x: padL - 8, y: yy + 4, 'text-anchor': 'end' }, String(Math.round(v))));
     }
 
     items.forEach(function (it, i) {
       var x = padL + gap * (i + 1) + bw * i;
       var h = (it.minutes / max) * innerH;
       var y = padT + innerH - h;
-      var rect = U.h('rect', { class: 'chart__bar', x: x, y: y, width: bw, height: Math.max(3, h), fill: store.subjectColor(it.subjectId) });
-      var t = U.h('title');
-      t.textContent = store.subjectName(it.subjectId) + ': ' + U.fmtMinutes(it.minutes);
-      rect.appendChild(t);
+      var rect = svgEl('rect', { class: 'chart__bar', x: x, y: y, width: bw, height: Math.max(3, h), fill: store.subjectColor(it.subjectId) });
+      rect.appendChild(svgEl('title', null, store.subjectName(it.subjectId) + ': ' + U.fmtMinutes(it.minutes)));
       svg.appendChild(rect);
-      svg.appendChild(U.h('text', { class: 'chart__label', x: x + bw / 2, y: y - 6, 'text-anchor': 'middle' }, U.fmtMinutes(it.minutes)));
+      svg.appendChild(svgEl('text', { class: 'chart__label', x: x + bw / 2, y: y - 6, 'text-anchor': 'middle' }, U.fmtMinutes(it.minutes)));
       var label = store.subjectName(it.subjectId);
-      svg.appendChild(U.h('text', { class: 'chart__label', x: x + bw / 2, y: H - 12, 'text-anchor': 'middle' }, label.length > 14 ? label.slice(0, 13) + '…' : label));
+      svg.appendChild(svgEl('text', { class: 'chart__label', x: x + bw / 2, y: H - 12, 'text-anchor': 'middle' }, label.length > 14 ? label.slice(0, 13) + '…' : label));
     });
 
     return svg;
@@ -140,19 +181,27 @@
   function heatmap() {
     var weeks = 16;
     var cells = [];
-    var start = U.startOfWeek(U.addDays(new Date(), -(weeks * 7 - 1)), 1);
-    var history = store.get().streak.history || {};
+    /* La última columna debe ser la semana actual: si se resta
+       semanas*7-1 y luego se redondea al lunes, el mapa acaba hasta 6 días
+       antes de hoy y no pinta las sesiones de esta semana. */
+    var start = U.addDays(U.startOfWeek(new Date(), 1), -(weeks - 1) * 7);
+    /* El mapa se calcula desde las sesiones, igual que la línea y el reparto:
+       así no se desincroniza si se importan datos o se borra una sesión. */
+    var minutesByDay = {};
+    store.get().sessions.forEach(function (s) {
+      minutesByDay[s.date] = (minutesByDay[s.date] || 0) + s.minutes;
+    });
     for (var i = 0; i < weeks * 7; i++) {
       var d = U.addDays(start, i);
       var iso = U.toISO(d);
-      var mins = history[iso] || 0;
+      var mins = minutesByDay[iso] || 0;
       var level = mins === 0 ? 0 : mins < 30 ? 1 : mins < 60 ? 2 : mins < 120 ? 3 : 4;
-      cells.push({ iso: iso, level: level, future: d > new Date() });
+      cells.push({ iso: iso, level: level, mins: mins, future: d > new Date() });
     }
     var grid = U.h('div.heat');
     cells.forEach(function (c) {
       var cell = U.h('div.heat__cell' + (c.level ? '.heat__cell--l' + c.level : ''), {
-        title: c.iso + ': ' + (c.level ? 'estudiado' : 'sin estudiar'),
+        title: U.fmtDate(c.iso, { weekday: true }) + ': ' + (c.mins ? U.fmtMinutes(c.mins) : 'sin estudiar'),
         style: c.future ? { opacity: '.35' } : null
       });
       grid.appendChild(cell);
@@ -170,8 +219,8 @@
 
     root.appendChild(U.h('div.col.gap-2', [
       U.h('div.grid.grid-4', [
-        statCard('timer', 'var(--brand-500)', U.fmtHours(s.total), 'Tiempo total', 'Últimos ' + view.range + ' días', 'brand'),
-        statCard('chart', 'var(--mint-500)', U.fmtHours(s.week), 'Esta semana', 'Últimos 7 días', 'mint'),
+        statCard('timer', 'var(--brand-500)', fmtTime(s.total), 'Tiempo total', 'Últimos ' + view.range + ' días', 'brand'),
+        statCard('chart', 'var(--mint-500)', fmtTime(s.week), 'Esta semana', 'Últimos 7 días', 'mint'),
         statCard('fire', 'var(--amber-500)', info.current + ' días', 'Racha actual', 'Mejor: ' + info.best + ' días', 'amber'),
         statCard('star', 'var(--violet-500)', 'Nivel ' + lvl.level, lvl.xp + ' XP', 'Para el siguiente: ' + (lvl.needed - lvl.current) + ' XP', 'violet')
       ]),
@@ -192,10 +241,7 @@
 
       U.h('div.grid.grid--split', [
         U.h('div.col.gap-2', [
-          U.h('div.card', [
-            U.h('div.card__head', [U.h('div', [U.h('h3', 'Reparto por asignatura'), U.h('p', 'Dónde se va tu tiempo')])]),
-            s.bySubject.length ? barChart(s.bySubject) : U.h('p.small.soft', 'Aún no hay sesiones en este periodo.')
-          ]),
+          subjectCard(s),
           U.h('div.card', [
             U.h('div.card__head', [
               U.h('div', [U.h('h3', 'Mapa de actividad'), U.h('p', 'Últimas 16 semanas')]),
@@ -217,6 +263,18 @@
     ]));
   }
 
+  /* El desglose por asignatura se leía como reparto pero era el total del
+     rango: la cabecera lo dice ahora claro. */
+  function subjectCard(s) {
+    return U.h('div.card', [
+      U.h('div.card__head', [
+        U.h('div', [U.h('h3', 'Reparto por asignatura'), U.h('p', 'Cómo se reparte tu tiempo')]),
+        U.h('span.badge', U.fmtMinutes(s.total))
+      ]),
+      s.bySubject.length ? barChart(s.bySubject) : U.h('p.small.soft', 'Aún no hay sesiones en este periodo.')
+    ]);
+  }
+
   function statCard(ic, color, value, label, sub, tone) {
     return U.h('div.stat', [
       U.h('div.stat__icon' + (tone ? '.stat__icon--' + tone : ''), { style: { color: color } }, U.icon(ic)),
@@ -226,6 +284,11 @@
         U.h('span.tiny.soft', sub)
       ])
     ]);
+  }
+
+  /* '0 h' se lee como que la tarjeta está vacía: 0 horas se muestra en min. */
+  function fmtTime(min) {
+    return min < 60 ? (min || 0) + ' min' : U.fmtHours(min);
   }
 
   function levelCard(lvl) {
