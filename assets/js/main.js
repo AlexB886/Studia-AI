@@ -9,6 +9,11 @@
   var Studia = global.Studia;
   var U = Studia.utils, store = Studia.store, ui = Studia.ui;
 
+  /* Limpiezas de los listeners montados por startApp(). En el arranque
+     se registran y se liberan al cambiar de usuario sin recargar. */
+  var wireOnce = {};
+  var lastMountedUser = null;
+
   /* Expuesto para que otros módulos (router) puedan reportar fallos. */
   Studia.captureError = function (kind, message, detail) { captureError(kind, message, detail); };
   Studia.diagnostics = function () { return diagnosticsText(); };
@@ -256,10 +261,13 @@
   function wireProfile() {
     function showProfile(anchor) {
       var p = store.get().profile;
-      ui.popover(anchor, U.h('div.col.gap-2', { style: { padding: '6px' } }, [
-        U.h('div', [U.h('strong.small', p.name), U.h('p.tiny.soft', p.university || '')]),
-        U.h('button.btn.btn--ghost.btn--sm.btn--block', { onclick: function () { openSettings(); } }, [U.icon('settings'), 'Ajustes']),
-        U.h('button.btn.btn--ghost.btn--sm.btn--block', {
+      var cloud = !!(Studia.auth && Studia.auth.user && Studia.auth.user());
+      var items = [
+        U.h('div', [U.h('strong.small', p.name), U.h('p.tiny.soft', (cloud ? Studia.auth.email() : p.university) || '')]),
+        U.h('button.btn.btn--ghost.btn--sm.btn--block', { onclick: function () { openSettings(); } }, [U.icon('settings'), 'Ajustes'])
+      ];
+      if (!cloud) {
+        items.push(U.h('button.btn.btn--ghost.btn--sm.btn--block', {
           onclick: function () {
             ui.confirm({ title: '¿Restablecer los datos de demostración?', message: 'Se borrarán tus tareas, sesiones y ajustes y volverán los datos de ejemplo.', okLabel: 'Restablecer', danger: true })
               .then(function (ok) {
@@ -270,8 +278,16 @@
                 Studia.router.go('dashboard');
               });
           }
-        }, [U.icon('reset'), 'Restablecer demo'])
-      ]));
+        }, [U.icon('reset'), 'Restablecer demo']));
+      } else {
+        items.push(U.h('button.btn.btn--ghost.btn--sm.btn--block', {
+          onclick: function () {
+            ui.confirm({ title: '¿Cerrar sesión?', message: 'Tus datos quedan guardados en tu cuenta de Studia-IA.', okLabel: 'Cerrar sesión', danger: true })
+              .then(function (ok) { if (ok) Studia.auth.signOut(); });
+          }
+        }, [U.icon('exit'), 'Cerrar sesión']));
+      }
+      ui.popover(anchor, U.h('div.col.gap-2', { style: { padding: '6px' } }, items));
     }
     ['btnProfile', 'btnSidebarProfile'].forEach(function (id) {
       var el = document.getElementById(id);
@@ -315,8 +331,6 @@
 
     var regions = (s.holidayRegions || []).slice();
     var fileInput = U.h('input', { type: 'file', accept: '.json,application/json', hidden: true });
-    var aiKeyInput = U.h('input', { type: 'password', placeholder: 'gsk_…', autocomplete: 'off', style: { flex: '1', minWidth: '0' } });
-    try { aiKeyInput.value = global.localStorage.getItem('studia.groq.key') || ''; } catch (e) { /* sin storage */ }
     fileInput.addEventListener('change', function () {
       var file = fileInput.files && fileInput.files[0];
       fileInput.value = '';
@@ -368,21 +382,6 @@
             });
             return U.h('label.switch', [input, U.h('span.switch__track'), U.h('span.small', Studia.holidays.REGIONS[key].label)]);
           }))
-        ]),
-        U.h('div.field', [
-          U.h('label.field__label', 'Luna con IA real (Groq)'),
-          U.h('p.tiny.soft.mb-1', 'Pega tu clave gratuita de console.groq.com. Se guarda solo en este navegador; nunca se sube al repositorio. Sin clave, Luna responde en modo sin conexión.'),
-          U.h('div.row.gap-2', [
-            aiKeyInput,
-            U.h('button.btn.btn--ghost.btn--sm', {
-              type: 'button',
-              onclick: function () {
-                var k = aiKeyInput.value.trim();
-                Studia.ai.groq.setKey(k || null);
-                ui.toast(k ? 'Luna con IA real activada' : 'Luna vuelve al modo sin conexión', 'success');
-              }
-            }, 'Guardar clave')
-          ])
         ]),
         U.h('div.field', [
           U.h('label.field__label', 'Copia de seguridad'),
@@ -474,14 +473,16 @@
   }
 
   /* ---------------- Atajos de teclado ---------------- */
+  function onGlobalKey(e) {
+    if (e.target.matches('input, textarea, select')) return;
+    if (e.key === '/') { e.preventDefault(); var gs = document.getElementById('globalSearch'); if (gs) gs.focus(); }
+    if (e.key === 't') Studia.router.go('study');
+    if (e.key === 'c') Studia.router.go('calendar');
+    if (e.key === 'h') Studia.router.go('schedule');
+  }
+
   function wireShortcuts() {
-    document.addEventListener('keydown', function (e) {
-      if (e.target.matches('input, textarea, select')) return;
-      if (e.key === '/') { e.preventDefault(); document.getElementById('globalSearch').focus(); }
-      if (e.key === 't') Studia.router.go('study');
-      if (e.key === 'c') Studia.router.go('calendar');
-      if (e.key === 'h') Studia.router.go('schedule');
-    });
+    document.addEventListener('keydown', onGlobalKey);
   }
 
   /* ---------------- Scroll ----------------
@@ -545,7 +546,7 @@
   /* ---------------- Diagnóstico ----------------
      Cualquier error no controlado se guarda aquí para poder copiarlo y
      reportarlo. Es la forma más rápida de saber qué falla en otro equipo. */
-  var APP_VERSION = '0.4.1';
+  var APP_VERSION = '0.5.0';
   var recentErrors = [];
 
   function captureError(kind, message, detail) {
@@ -660,6 +661,20 @@
   }
 
   function startApp() {
+    /* Re-entradas (cambio de sesión sin recargar): se quitan los
+       listeners del arranque anterior para no duplicarlos. */
+    var uid = (Studia.auth.user() && Studia.auth.user().id) || 'anon';
+    if (lastMountedUser && lastMountedUser !== uid) {
+      Object.keys(wireOnce).forEach(function (k) {
+        try { wireOnce[k](); } catch (e) { /* ya liberado */ }
+      });
+      wireOnce = {};
+      document.removeEventListener('keydown', onGlobalKey);
+      var chip = document.getElementById('timerChip');
+      if (chip) chip.remove();
+    }
+    lastMountedUser = uid;
+
     applyTheme(store.get().settings.theme);
     wireLifecycle();
 
@@ -678,26 +693,168 @@
     document.getElementById('btnTheme').addEventListener('click', toggleTheme);
     document.getElementById('btnSettings').addEventListener('click', openSettings);
 
-    store.subscribe(updateChrome);
+    var unsub = store.subscribe(updateChrome);
+    wireOnce.chrome = unsub;
+    /* Cambio de usuario: la recarga la atiende el listener global del boot. */
     updateChrome();
 
     Studia.router.start();
     document.body.classList.add('is-ready');
+
+    /* Con la app ya montada: si había datos del prototipo en este
+       navegador, se suben a la cuenta la primera vez. */
+    if (Studia.db.migrateLegacy) {
+      Studia.db.migrateLegacy().then(function (res) {
+        if (res === 'migrated') {
+          /* Se recarga para pintar el estado real de la cuenta (ya
+             sincronizado con la nube) tras el volcado. */
+          store.load().then(function () { Studia.router.render(); });
+          ui.toast('Tus datos de prueba se han subido a tu cuenta', 'success');
+        }
+      });
+    }
+  }
+
+  /* ---------------- Pantalla de acceso (obligatorio) ---------------- */
+  function showError(box, message) {
+    var err = box.querySelector('.login-screen__error');
+    if (!err) {
+      err = U.h('p.login-screen__error', { role: 'alert' });
+      box.insertBefore(err, box.querySelector('.login-screen__actions'));
+    }
+    U.clear(err);
+    err.appendChild(document.createTextNode(message));
+  }
+
+  function drawLogin() {
+    var root = document.getElementById('loginScreen');
+    if (!root) return;
+    document.body.classList.remove('is-ready');   // oculta la app hasta entrar
+    U.clear(root);
+    root.hidden = false;
+
+    var email = U.h('input', { type: 'email', required: true, autocomplete: 'email', placeholder: 'tu@correo.edu', class: 'field__input' });
+    var pass = U.h('input', { type: 'password', required: true, minlength: '6', autocomplete: 'current-password', placeholder: '••••••••', class: 'field__input' });
+    var mode = 'in';
+    var tabIn = U.h('button.btn.btn--soft.btn--sm', { type: 'button' }, 'Entrar');
+    var tabUp = U.h('button.btn.btn--ghost.btn--sm', { type: 'button' }, 'Crear cuenta');
+
+    function setMode(next) {
+      mode = next;
+      tabIn.className = 'btn btn--sm ' + (mode === 'in' ? 'btn--soft' : 'btn--ghost');
+      tabUp.className = 'btn btn--sm ' + (mode === 'up' ? 'btn--soft' : 'btn--ghost');
+      pass.setAttribute('autocomplete', mode === 'in' ? 'current-password' : 'new-password');
+      submitBtn.textContent = mode === 'in' ? 'Entrar' : 'Crear cuenta';
+      help.textContent = mode === 'in'
+        ? 'Estudia mejor con tus tareas, tu horario y Luna.'
+        : 'Se crea gratis y empieza con una cuenta vacía: la app se adapta a ti.';
+    }
+
+    var help = U.h('p.tiny.soft', 'Estudia mejor con tus tareas, tu horario y Luna.');
+    var submitBtn = U.h('button.btn.btn--primary.btn--block', { type: 'submit' }, 'Entrar');
+    tabIn.addEventListener('click', function () { setMode('in'); });
+    tabUp.addEventListener('click', function () { setMode('up'); });
+
+    var form = U.h('form.login-screen__form', { novalidate: false }, [
+      U.h('div.row.gap-1.login-screen__tabs', [tabIn, tabUp]),
+      U.h('div.field', [U.h('label.field__label', { for: 'loginEmail' }, 'Email'), email]),
+      U.h('div.field', [U.h('label.field__label', { for: 'loginPass' }, 'Contraseña (mínimo 6 caracteres)'), pass]),
+      U.h('div.login-screen__actions', [submitBtn]),
+      help
+    ]);
+    email.id = 'loginEmail';
+    pass.id = 'loginPass';
+
+    function submit(e) {
+      e.preventDefault();
+      var em = email.value.trim();
+      var pw = pass.value;
+      if (!em || !pw) { showError(form, 'Escribe email y contraseña.'); return; }
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Espera…';
+      var op = mode === 'in'
+        ? Studia.auth.signIn(em, pw)
+        : Studia.auth.signUp(em, pw);
+      op.then(function (res) {
+        if (mode === 'up') {
+          var d = res && res.data ? res : res;
+          var needsConfirm = res && res.data && res.data.session == null;
+          if (needsConfirm) {
+            showError(form, 'Cuenta creada. Confirma el email (en cuanto lo activemos) y entra.');
+            return;
+          }
+        }
+        /* onAuthStateChange mostrará la app al haber sesión */
+      }).catch(function (err) {
+        var msg = (err && err.message) || 'No se ha podido continuar.';
+        if (/invalid login/i.test(msg)) msg = 'Email o contraseña incorrectos.';
+        if (/already registered|already exists/i.test(msg)) msg = 'Ese email ya tiene cuenta. Prueba a entrar.';
+        showError(form, msg);
+      }).then(function () {
+        submitBtn.disabled = false;
+        submitBtn.textContent = mode === 'in' ? 'Entrar' : 'Crear cuenta';
+      });
+    }
+    form.addEventListener('submit', submit);
+
+    root.appendChild(U.h('div.login-screen__box', [
+      U.h('img', { src: 'assets/img/favicon.svg', alt: '', width: '52', height: '52' }),
+      U.h('h1.login-screen__title', 'Studia-IA'),
+      U.h('p.login-screen__sub', 'Organiza tu curso: tareas, horario, pomodoro y Luna.'),
+      form
+    ]));
+    setTimeout(function () { email.focus(); }, 60);
+  }
+
+  function hideLogin() {
+    var root = document.getElementById('loginScreen');
+    if (root) { root.hidden = true; U.clear(root); }
   }
 
   function boot() {
     wireErrors();
     var t = setTimeout(showBoot, 150);   // solo aparece si la carga tarda
-    store.load().then(function () {
-      clearTimeout(t);
-      hideBoot();
-      startApp();
-    }, function (e) {
-      clearTimeout(t);
-      hideBoot();
-      startApp();
-      captureError('carga', e && e.message, e && e.stack);
-      ui.toast('No se pudieron cargar tus datos guardados: se muestran datos de ejemplo. Puedes restaurar una copia en Ajustes → Copia de seguridad.', 'warn', 9000);
+    var appStarted = false;
+
+    function openApp() {
+      store.load().then(function () {
+        clearTimeout(t);
+        hideBoot();
+        hideLogin();
+        startApp();
+      }, function (e) {
+        clearTimeout(t);
+        hideBoot();
+        hideLogin();
+        startApp();
+        captureError('carga', e && e.message, e && e.stack);
+        ui.toast('No se pudieron cargar tus datos guardados: se muestran datos vacíos. Puedes restaurar una copia en Ajustes → Copia de seguridad.', 'warn', 9000);
+      });
+    }
+
+    var sdkReady = Studia.auth.init().then(function () { return true; }, function () { return false; });
+    Promise.all([sdkReady, Studia.auth.checkLuna()]).then(function (rs) {
+      var ok = rs[0]; var lunaOk = rs[1];
+      if (ok && !lunaOk) {
+        ui.toast('Luna real no está desplegada (luna-chat 404): responde en modo sin conexión.', 'warn', 8000);
+      }
+      if (!ok) {
+        clearTimeout(t);
+        hideBoot();
+        showBoot();
+        document.querySelector('.boot-screen__card p').textContent =
+          'Sin conexión con Supabase: revisa internet y recarga.';
+        return;
+      }
+      /* Cambio de sesión: con usuario se abre la app; sin él, pantalla de acceso.
+         Tras arrancar ya, la recarga la hace store.watchAuth (estado); aquí solo
+         montar la app si aún no estaba montada. */
+      Studia.auth.onChange(function (user) {
+        if (user) { if (!appStarted) openApp(); }
+        else { appStarted = false; drawLogin(); }
+      });
+      if (Studia.auth.user()) openApp();
+      else drawLogin();
     });
   }
 

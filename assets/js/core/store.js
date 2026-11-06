@@ -100,8 +100,12 @@
 
   function hydrate(saved) {
     var data = migrate(saved);
+    /* Con cuenta de Supabase (Supabase manda): usuario nuevo arranca
+       vacío, sin datos de ejemplo. Sin sesión (prototipo local/tests):
+       seed de demostración, como siempre. */
+    var cloud = !!(Studia.auth && Studia.auth.user && Studia.auth.user());
     if (!data || !data.profile) {
-      state = merge(defaults(), Studia.seed.build());
+      state = cloud ? defaults() : merge(defaults(), Studia.seed.build());
     } else {
       state = merge(defaults(), data);
     }
@@ -157,21 +161,31 @@
     return readyPromise;
   }
 
-  /* Otra pestaña ha guardado: recargamos sin volver a escribir (si no,
-     las dos pestañas se sobrescribirían en bucle). */
-  function watchOtherTabs() {
-    global.addEventListener('storage', function (e) {
-      if (e.key !== Studia.db.KEY) return;
-      try {
-        var data = e.newValue ? JSON.parse(e.newValue) : null;
-        if (!data) return;
-        hydrate(data);
-        notify({ persist: false });
-        if (Studia.router) Studia.router.render();
-        if (Studia.ui) Studia.ui.toast('Datos actualizados desde otra pestaña', 'info');
-      } catch (err) {
-        console.warn('[Studia] No se pudo sincronizar con la otra pestaña:', err);
+  /* Recarga el estado al cambiar de usuario (login, logout o expiración).
+     Con Supabase no hace falta sincronía entre pestañas en tiempo real:
+     cada pestaña recarga al enterarse del cambio de sesión. */
+  function watchAuth() {
+    if (!Studia.auth || typeof Studia.auth.onChange !== 'function') return;
+    var lastUid = null;
+    Studia.auth.onChange(function (user) {
+      var uid = (user && user.id) || null;
+      if (uid === lastUid) return;
+      lastUid = uid;
+      readyPromise = null;
+      status = 'loading';
+      if (!uid) {
+        /* Cerrada la sesión: se vacía la memoria para que el siguiente
+           logado no vea datos ajenos ni un guardado lo suba a su cuenta. */
+        state = null;
+        return;
       }
+      readyPromise = load()
+        .then(function () {
+          if (Studia.router) Studia.router.render();
+        })
+        .catch(function (e) {
+          if (Studia.captureError) Studia.captureError('carga', e && e.message, e && e.stack);
+        });
     });
   }
 
@@ -396,6 +410,6 @@
     }
   };
 
-  watchOtherTabs();
+  watchAuth();
   Studia.store = store;
 })(window);

@@ -41,13 +41,28 @@ const GROQ_TIMEOUT_MS = 25000;
 // ------------------------------------------------------------
 function allowedOrigins(): string[] {
   const raw = Deno.env.get("ALLOWED_ORIGINS") || "";
-  return raw.split(",").map((o) => o.trim()).filter(Boolean);
+  const list = raw.split(",").map((o) => o.trim()).filter(Boolean);
+  // En local (XAMPP) el origen puede llevar puerto: se normaliza para
+  // que "http://localhost:8080" también valga con ALLOWED_ORIGINS=http://localhost.
+  return list;
+}
+
+function originAllowed(origin: string | null): boolean {
+  if (!origin) return false;
+  const list = allowedOrigins();
+  if (list.includes(origin)) return true;
+  try {
+    const u = new URL(origin);
+    const base = u.protocol + "//" + u.hostname;
+    return list.includes(base);
+  } catch {
+    return false;
+  }
 }
 
 function corsHeaders(origin: string | null): Record<string, string> {
-  const list = allowedOrigins();
   // Sin Origin (curl, extensiones, same-origin): no mandamos CORS.
-  const allow = origin && list.includes(origin) ? origin : "";
+  const allow = originAllowed(origin) ? (origin as string) : "";
   return {
     "Access-Control-Allow-Origin": allow,
     "Access-Control-Allow-Headers": "authorization, apikey, content-type",
@@ -167,16 +182,14 @@ Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
 
   if (req.method === "OPTIONS") {
-    const list = allowedOrigins();
-    if (origin && !list.includes(origin)) return json(403, { error: "origen_no_permitido" }, origin);
+    if (origin && !originAllowed(origin)) return json(403, { error: "origen_no_permitido" }, origin);
     return new Response("ok", { status: 204, headers: corsHeaders(origin) });
   }
   if (req.method !== "POST") {
     return json(405, { error: "metodo_no_permitido" }, origin);
   }
 
-  const list = allowedOrigins();
-  if (origin && !list.includes(origin)) {
+  if (origin && !originAllowed(origin)) {
     return json(403, { error: "origen_no_permitido" }, origin);
   }
 
